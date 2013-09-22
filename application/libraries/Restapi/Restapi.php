@@ -31,36 +31,6 @@ class RestResource extends CI_Controller
 
     protected $allowed_methods = array(REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE);
 
-    /*
-    List of allowed HTTP methods that can be called as an Array operation
-    e.g.: 
-        /users/
-        /blogs/
-
-    e.g. Response:
-        In case of GET it can return array of resources
-        In case of POST it is expected to create and return new Resource
-        In case of DELETE it is expected to Remove all Resources (Not Recommended!)
-
-    Overrides $allowed_methods
-    */
-    protected $allowed_methods_list = array();
-
-    /*
-    List of allowed methods that can be called as a Detail operation
-    e.g.: 
-        /users/1/
-        /blogs/5/
-
-    e.g. Response:
-        In case of GET it can return the specified resource
-        In case of PUT it is expected to update specified Resource
-        In case of DELETE it is expected to Remove specified Resources
-
-    Overrides $allowed_methods
-    */
-    protected $allowed_methods_detail = array();
-
     protected $api_format = array('json', 'xml');
 
     /*
@@ -80,20 +50,27 @@ class RestResource extends CI_Controller
 
     /*Resource Fields.*/
 
-    /*Allowed fields in GET Responses*/
-    protected $resource_get_fields = array();
+    /*Resource fields which will be Automatically stripped out of All response results*/
+    protected $excluded_fields = array();
 
-    /*Allowed fields in POST Responses*/
-    protected $resource_post_fields = array();
+    /*
+    Black list of Prohibited fields in POST Requests - Existing fields will be Removed from
+    Request Data.
+    Note: That means, the request is still considered valid. If you would like to change
+    this behavior then you can simply Override ::filter_input_fields()
+    */
+    protected $prohibited_post_fields = array();
 
-    /*Allowed fields in PUT Responses*/
-    protected $resource_put_fields = array();
+    /*
+    Black list of Prohibited fields in PUT Requests - Existing fields will be Removed from
+    Request Data
+    */
+    protected $prohibited_put_fields = array();
 
     /*META
-    Add meta data to all Responses. meta may include: limit, offset, next, previous
-    Established by add_meta() method. Can be overriden!
+    Add meta data to all Responses. meta may include: limit, offset, etc ...
+    Established by get_meta() method. Can be overriden!
     */
-
     protected $add_meta = TRUE;
 
     protected $meta_name = "meta";
@@ -181,7 +158,35 @@ class RestResource extends CI_Controller
         return (array_key_exists($this->request->method, $this->default_response_code)) ? 
             $this->default_response_code[$this->request->method] : HTTP_RESPONSE_OK;
     }
-    
+
+    protected function filter_input_fields()
+    {
+        if ($this->request->method == REQUEST_POST)
+        {
+            $this->request->filter_data($this->prohibited_post_fields);
+        }
+        elseif ($this->request->method == REQUEST_PUT)
+        {
+            $this->request->filter_data($this->prohibited_put_fields);
+        }
+    }
+
+    protected function get_data()
+    {
+        return $this->request->data();
+    }
+
+    protected function process_input_data()
+    {
+        // Load Data - XSS Clean!
+        return $this->get_data();
+    }
+
+    // Process O/P Data
+    protected function process_output_data($data)
+    {
+        return $data;
+    }
     
     /*METHODS REST HANDLERS*/
 
@@ -211,25 +216,25 @@ class RestResource extends CI_Controller
 
     /* MODEL HANDLERS*/
 
-    protected function model_create($request, $data)
+    protected function model_create($data)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
-    protected function model_get($request, $data)
+    protected function model_get($id)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
-    protected function model_update($request, $data)
+    protected function model_update($id, $data)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
-    protected function model_delete($request, $data)
+    protected function model_delete($id)
     {
         // Should be Implemented in Resource
         return NULL;
@@ -303,6 +308,10 @@ class RestResource extends CI_Controller
     /*Validation*/
     private function _validate()
     {
+        // First, filter our Input Data
+        $this->filter_input_fields();
+
+        // Then, call custom Validation Method if exists!
         if($this->validation && is_callable(array($this, $this->validation)))
         {
             if(call_user_func(array($this, $this->validation)))
@@ -335,25 +344,25 @@ class RestModelResource extends RestResource
     /*The Model represented by this reource*/
     protected $model_class = '';
 
-    /*
-    Map Resource API fields to Model fields. If no Map done, then Model and Resource will/should
-    have the same fields.
-
-    e.g. for a model with `name` and `created` attributes
-    array("name" => "fullName", "created" => "creationDate")
-    */
-    protected $resource_model_map_fields = array();
-
-    // The Loaded Object!
-    protected $obj = NULL;
-
     protected $limit = 50;
     protected $limit_arg_name = 'limit';
 
     protected $offset = 0;
     protected $offset_arg_name = 'offset';
 
+    // The index of the object ID in the URI. Default is -1 (which means the last element in URI)
+    protected $object_id_uri_index = -1;
+
+    // The RestModel Loaded Object!
+    private $obj = NULL;
+
     private $add_model_meta = FALSE;
+
+
+    // OVERRIDDEN PROPERTIES //
+
+    // By default, caller cannot supply ID for creating new object!
+    protected $prohibited_post_fields = array('id');
 
     public function __construct()
     {
@@ -369,6 +378,7 @@ class RestModelResource extends RestResource
             $this->response->http_500('Failed to Instantiate object!');
         }
 
+        // Limit and Offset can be useful in pagination
         $this->limit = $this->get_limit();
         $this->offset = $this->get_offset();
 
@@ -388,19 +398,14 @@ class RestModelResource extends RestResource
 
     protected function get_object_id()
     {
-        // Default, is the first URI Arg (e.g. /users/1/ then 1 is the id)
-        // Index=1 and keep it XSS clean, as there will be DB operation here!
-        $id = $this->request->uri(1, TRUE);
+        // Default, is the last URI Arg (e.g. /users/1/ then 1 is the id, as users is index 0)
+        // keep it XSS clean, as there will be DB operation here!
+        $id = $this->request->uri($this->object_id_uri_index, TRUE);
         if ($id === 'index')
         {
             $id = NULL;
         }
         return $id;
-    }
-
-    protected function get_data()
-    {
-        return $this->request->data();
     }
 
     protected function get_limit()
@@ -435,18 +440,18 @@ class RestModelResource extends RestResource
     // POST
     protected function rest_post()
     {
+        // Load Data
+        $data = $this->process_input_data();
+
         // Create the new object and save it!
-        $res = $this->model_create();
+        $res = $this->model_create($data);
 
         // Well, it seems we made it ...
-        return $res;
+        return $this->process_output_data($res);
     }
 
-    protected function model_create()
+    protected function model_create($data)
     {
-        // Load Data - XSS Clean!
-        $data = $this->get_data();
-
         // Load Object with Data
         $this->obj->load($data);
 
@@ -483,7 +488,7 @@ class RestModelResource extends RestResource
             $res = $this->model_get_all();
         }
 
-        return $res;
+        return $this->process_output_data($res);
     }
 
     protected function model_get($id)
@@ -522,12 +527,15 @@ class RestModelResource extends RestResource
             $this->response->http_404();
         }
 
+        // Load Data
+        $data = $this->process_input_data();
+
         $res = $this->model_update($id);
 
-        return $res;
+        return $this->process_output_data($res);
     }
 
-    protected function model_update($id)
+    protected function model_update($id, $data)
     {
         // Get the specified object
         if (! $this->obj->exists($id))
@@ -535,9 +543,6 @@ class RestModelResource extends RestResource
             // 404 NOT FOUND
             $this->response->http_404('Error 404. Not Found');
         }
-
-        // Load Data - XSS Clean!
-        $data = $this->get_data();
 
         // Load Object with Data + ID
         $this->obj->load($data, $id);
@@ -691,6 +696,12 @@ class Request
         {
             return $this->_uri;
         }
+        elseif ($index === -1)
+        {
+            $uri = end($this->_uri);
+            reset($this->_uri);
+            return $xss_clean ? $this->security->xss_clean($uri) : $uri;
+        }
         elseif(count($this->_uri) && count($this->_uri) >= $index+1)
         {
             $uri = $this->_uri[$index+1];
@@ -699,6 +710,18 @@ class Request
 
         return NULL;
     }
+
+    public function filter_data($filter)
+    {
+        foreach ($this->_data as $key => $value)
+        {
+            if (in_array($key, $filter))
+            {
+                unset($this->_data[$key]);
+            }
+        }
+    }
+
 }
 
 class Response
