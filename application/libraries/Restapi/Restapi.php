@@ -171,6 +171,37 @@ class RestResource extends CI_Controller
         }
     }
 
+    protected function filter_output_fields($output)
+    {
+        if (is_array($output))
+        {
+            if (is_assoc($output))
+            {
+                // This is the object details
+                foreach ($this->excluded_fields as $field)
+                {
+                    if (array_key_exists($field, $output))
+                    {
+                        unset($output[$field]);
+                    }
+                }
+                return $output;
+            }
+            else
+            {
+                // This is list of objects
+                $filtered_list = array();
+                foreach ($output as $obj)
+                {
+                    $filtered_list[] = $this->filter_output_fields($obj);
+                }
+                return $filtered_list;
+            }
+        }
+
+        return $output;
+    }
+
     protected function get_data()
     {
         return $this->request->data();
@@ -185,7 +216,7 @@ class RestResource extends CI_Controller
     // Process O/P Data
     protected function process_output_data($data)
     {
-        return $data;
+        return $this->filter_output_fields($data);
     }
     
     /*METHODS REST HANDLERS*/
@@ -721,7 +752,6 @@ class Request
             }
         }
     }
-
 }
 
 class Response
@@ -909,4 +939,10 @@ class RestFormat
     {
         return json_encode($data);
     }
+}
+
+// Helper Method
+function is_assoc($array)
+{
+    return (array_values($array) !== $array);
 }
