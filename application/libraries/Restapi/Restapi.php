@@ -2,6 +2,21 @@
 
 if (!defined('BASEPATH')) exit('No direct script access allowed');
 
+/**
+* Restapi (ci-rest-api)
+* CodeIgniter REST API Library
+*
+* A REST library that implements REST Resources for CodeIgniter Controllers.
+* It provides RestResource for regular resources and RestModelResource for Adding API interface to
+* your models. Currently DataMapper Models are supported.
+*
+* @package Restapi
+* @license MIT License https://github.com/mohabusama/ci-rest-api/blob/master/LICENSE
+* @link https://github.com/mohabusama/ci-rest-api
+* @author Mohab Usama
+* @version 0.1.0
+*/
+
 define("REQUEST_GET", 'get');
 define("REQUEST_POST", 'post');
 define("REQUEST_PUT", 'put');
@@ -26,58 +41,176 @@ define("HTTP_RESPONSE_NOT_IMPLEMENTED", '501');
 
 require_once APPPATH . 'libraries/Restapi/Restmodel.php';
 
+/**
+ * RestResource Class
+ * 
+ * The Basic Resource Class. This class should replace CI_Controller in your controller. Once you
+ * extend it by your controller, it will provide you with basic API functionality.
+ * Supported HTTP Methods: GET, POST, PUT, DELETE
+ * 
+ * Most of this class methods can be overriden to give the developer full control over the whole
+ * process.
+ * 
+ * A REST API call Life cycle goes as follows:
+ * - __construct method initializes the class with Request and Response objects
+ * - handle_request method is the entry point. It checks Allowed methods, Authentication,
+ *   Authorization and Validation. It responds automatically according to developers overriden class
+ *   properties
+ * - get_response() method dispatches a call to the method that will handle the request.
+ *   The method called is dependent on the HTTP Method detected in the Request object.
+ * - rest_get(), rest_post(), rest_put and rest_delete() is where the action is done. Those methods 
+ *   should be overriden by the Developer to return the result of the API call.
+ *   model_create(), model_get(), model_update() and model_delete() methods can be overriden as well
+ *   as they can help in organizing the code.
+ * - send_response() method is repsonsible for encapsulating the API call result, and sending it
+ *   back to the client.
+ *  
+ * @package Restapi
+ */
 class RestResource extends CI_Controller
 {
 
+    /**
+     * Array of allowed HTTP Methods to be supported by this Resource.
+     * If an HTTP Request is made with a not allowed method, RestResource will immidiately respond
+     * with METHOD_NOT_ALLOWED 405
+     * 
+     * @var array
+     */
     protected $allowed_methods = array(REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE);
 
+    /**
+     * Array of allowed Formats that this resouce should support.
+     * Default is json
+     * 
+     * @var array
+     */
     protected $api_format = array('json', 'xml');
 
-    /*
-    Add one -or- multiple authentications methods. One successful authentication is enough!
-    */
+    /**
+     * Add one -or- multiple authentications methods. One successful authentication is enough!
+     * Authentication method should be implemented in Resource Class, and should be added as string.
+     * Authentication method should return either TRUE or FALSE. TRUE means the request will
+     * continue to be processed, FALSE means Authentication failed.
+     * 
+     * If All Authentication methods failed, then RestResource will immidiately exit with 401 Error.
+     * 
+     * @example protected $authentication = array('authenticate_ldap', 'authenticate_session');
+     * @var array
+     */
     protected $authentication = array();
 
-    /*
-    Add one -or- multiple authorization methods.
-    */
+    /**
+     * Add one -or- multiple authorization methods. All Authorization methods should succeed in
+     * order for the request to be processed.
+     * Authorization method should return either TRUE or FALSE. TRUE means the request will
+     * continue to be processed, FALSE means Authorization failed.
+     * 
+     * If One Authorization method failed, then RestResource will immidiately exit with 401 Error.
+     * 
+     * @example protected $authorization = array('authorize_owner', 'authorize_action');
+     * @var array
+     */
     protected $authorization = array();
 
-    /*
-    Add Validation method.!
-    */
+    /**
+     * Add Validation method.
+     * 
+     * Validation method should return either TRUE or FALSE. TRUE means the request will
+     * continue to be processed, FALSE means Validation failed.
+     * 
+     * If Validation method failed, then RestResource will immidiately exit with BAD REQUEST 400.
+     * 
+     * @example protected $validation = 'validate_input_data';
+     * @var string
+     */
     protected $validation = NULL;
 
-    /*Resource Fields.*/
-
-    /*Resource fields which will be Automatically stripped out of All response results*/
+    /**
+     * Resource fields which will be Automatically stripped out of All response results.
+     * 
+     * If we consider a Resource with fields ['name', 'email', 'password', 'secret'] and we wish
+     * to return the resource while automatically excluding the 'password' and 'secret' fields, then
+     * we can just add them to the $excluded_fields array and RestResource will exclude them from
+     * any response.
+     * @example $excluded_fields = array('password', 'secret');
+     * @var array
+     */
     protected $excluded_fields = array();
 
-    /*
-    Black list of Prohibited fields in POST Requests - Existing fields will be Removed from
-    Request Data.
-    Note: That means, the request is still considered valid. If you would like to change
-    this behavior then you can simply Override ::filter_input_fields()
-    */
-    protected $prohibited_post_fields = array();
+    /**
+     * Black list of Protected fields in POST Requests - Existing fields will be Removed from
+     * Request Data.
+     * Note: That means, the request is still considered valid. If you would like to change
+     * this behavior then you can simply Override filter_input_fields()
+     * 
+     * Sometimes you need to protect some fields during a POST request and prevent the Client from
+     * setting their values. Add the fields to the $protected_post_fields and they will be
+     * automatically removed from Request payload.
+     * @example $protected_post_fields = array('id', 'secret');
+     * @var array
+     */
+    protected $protected_post_fields = array();
 
-    /*
-    Black list of Prohibited fields in PUT Requests - Existing fields will be Removed from
-    Request Data
-    */
-    protected $prohibited_put_fields = array();
+    /**
+     * Black list of Protected fields in PUT Requests - Existing fields will be Removed from
+     * Request Data.
+     * Note: That means, the request is still considered valid. If you would like to change
+     * this behavior then you can simply Override filter_input_fields()
+     * 
+     * Sometimes you need to protect some fields during a PUT request and prevent the Client from
+     * setting their values. Add the fields to the $protected_put_fields and they will be
+     * automatically removed from Request payload.
+     * @example $protected_put_fields = array('secret');
+     * @var array
+     */
+    protected $protected_put_fields = array();
 
-    /*META
-    Add meta data to all Responses. meta may include: limit, offset, etc ...
-    Established by get_meta() method. Can be overriden!
-    */
+    /**
+     * Resource META Data
+     * 
+     * META Data is extra key that can be <i>optionaly</i> added to the Response.
+     * It can hold some extra information. For example @link RestModelResource adds the following
+     * meta fields:
+     * - total: Total number of Objects in DB
+     * - count: Count of objects returned in this response
+     * - limit: The maximum limit that can be queried
+     * - offset: The last offset which returned response data
+     * 
+     * The developer can add whatever meta data required by overriding get_meta() method.
+     * 
+     * Adding meta data is optional.
+     * 
+     * @example JSON Response including meta data can look like:
+     * {
+     *   "result": [{"name": "jon"}, {"name": "doe"}],
+     *   "meta": {"count": 2, "total": 50, "limit": 2, "offset": 0}
+     * }
+     * @var bool
+     */
     protected $add_meta = TRUE;
 
+    /**
+     * META Data Key Name
+     * Dafault is "meta"
+     * 
+     * @var string
+     */
     protected $meta_name = "meta";
 
-    // Add meta.timestamp to all responses
+    /**
+     * Add META Data timestamp of the response
+     * 
+     * @var bool
+     */
     protected $meta_timestamp = FALSE;
 
+    /**
+     * Array of default response code for every Request Method. This array will be checked when
+     * sending back the Response after a successful API call. Can be overriden to change behavior.
+     * 
+     * @var array
+     */
     protected $default_response_code = array(
         REQUEST_GET => HTTP_RESPONSE_OK,
         REQUEST_POST => HTTP_RESPONSE_CREATED,
@@ -85,7 +218,26 @@ class RestResource extends CI_Controller
         REQUEST_DELETE => HTTP_RESPONSE_NO_CONTENT
     );
 
+    /**
+     * A Private array holding the Response result.
+     * 
+     * @var array
+     */
     private $_result = array();
+
+    /**
+     * Request object encaplsulating all Request Data
+     * 
+     * @var Request
+     */
+    public $request;
+
+    /**
+     * Response object encaplsulating all Response Data and HTTP exit methods.
+     * 
+     * @var Response
+     */
+    public $response;
 
     public function __construct()
     {
@@ -163,11 +315,11 @@ class RestResource extends CI_Controller
     {
         if ($this->request->method == REQUEST_POST)
         {
-            $this->request->filter_data($this->prohibited_post_fields);
+            $this->request->filter_data($this->protected_post_fields);
         }
         elseif ($this->request->method == REQUEST_PUT)
         {
-            $this->request->filter_data($this->prohibited_put_fields);
+            $this->request->filter_data($this->protected_put_fields);
         }
     }
 
@@ -271,6 +423,18 @@ class RestResource extends CI_Controller
         return NULL;
     }
 
+    /*Meta*/
+    protected function get_meta()
+    {
+        $meta = array();
+        if($this->meta_timestamp)
+        {
+            $meta['timestamp'] = time();
+        }
+
+        return $meta;
+    }
+
     /*Check if request is allowed*/
     private function _check_allowed()
     {
@@ -356,18 +520,6 @@ class RestResource extends CI_Controller
         }
         return TRUE;
     }
-
-    /*Meta*/
-    protected function get_meta()
-    {
-        $meta = array();
-        if($this->meta_timestamp)
-        {
-            $meta['timestamp'] = time();
-        }
-
-        return $meta;
-    }
 }
 
 class RestModelResource extends RestResource
@@ -393,7 +545,7 @@ class RestModelResource extends RestResource
     // OVERRIDDEN PROPERTIES //
 
     // By default, caller cannot supply ID for creating new object!
-    protected $prohibited_post_fields = array('id');
+    protected $protected_post_fields = array('id');
 
     public function __construct()
     {
