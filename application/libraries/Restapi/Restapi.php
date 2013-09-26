@@ -94,6 +94,7 @@ class RestResource extends CI_Controller
      * continue to be processed, FALSE means Authentication failed.
      * 
      * If All Authentication methods failed, then RestResource will immidiately exit with 401 Error.
+     * Check @method _authenticate()
      * 
      * @example protected $authentication = array('authenticate_ldap', 'authenticate_session');
      * @var array
@@ -107,6 +108,7 @@ class RestResource extends CI_Controller
      * continue to be processed, FALSE means Authorization failed.
      * 
      * If One Authorization method failed, then RestResource will immidiately exit with 401 Error.
+     * Check @method _authorize()
      * 
      * @example protected $authorization = array('authorize_owner', 'authorize_action');
      * @var array
@@ -120,6 +122,7 @@ class RestResource extends CI_Controller
      * continue to be processed, FALSE means Validation failed.
      * 
      * If Validation method failed, then RestResource will immidiately exit with BAD REQUEST 400.
+     * Check @method _validate()
      * 
      * @example protected $validation = 'validate_input_data';
      * @var string
@@ -239,6 +242,11 @@ class RestResource extends CI_Controller
      */
     public $response;
 
+
+    /**
+     * RestResource Constructor.
+     * Creates Request and Response objects, and calls handle_request()
+    */
     public function __construct()
     {
         parent::__construct();
@@ -248,9 +256,15 @@ class RestResource extends CI_Controller
 
         $this->response = new Response($this, $default_format);
 
+        // Start handling the request. This is our entry point to real action!
         $this->handle_request();
     }
 
+    /**
+     * Our Main Entry point.
+     * Checks Allowed Methods, Authenticates, Authorizes, Validates, Gets the response and send it
+     * to our client.
+    */
     protected function handle_request()
     {
         // Check if request is accepted
@@ -268,9 +282,17 @@ class RestResource extends CI_Controller
         // We are Good to Go ...
         $res = $this->get_response();
 
+        // And we send response to our Client ...
         $this->send_response($res);
     }
 
+    /**
+     * Retrieves the response output result.
+     * It is responsible for calling one rest_get, rest_post, rest_put and rest_delete depending
+     * on the detected method in request.
+     * 
+     * @return mixed Returns the Response output (body)
+    */
     protected function get_response()
     {
         $output = NULL;
@@ -285,6 +307,12 @@ class RestResource extends CI_Controller
         return $output;
     }
 
+    /**
+     * Send response back to client.
+     * 
+     * This our end-point, where we set response http status, prepare the result, add meta data if
+     * required and Exit with the proper Response.
+    */
     protected function send_response($output)
     {
         $this->response->status = $this->get_default_status();
@@ -305,12 +333,28 @@ class RestResource extends CI_Controller
         $this->response->http_exit($this->_result);
     }
 
+    /**
+     * Returns the HTTP status code for our request depending on Request Method and
+     * $default_response_code.
+     * 
+     * @return string HTTP Status Code
+    */
     protected function get_default_status()
     {
         return (array_key_exists($this->request->method, $this->default_response_code)) ? 
             $this->default_response_code[$this->request->method] : HTTP_RESPONSE_OK;
     }
 
+    /**
+     * Filters the input data fields based on Request Method and $protected_post_fields and
+     * $protected_put_fields.
+     * 
+     * It actually uses @method filter_data() in Request object. So, Input data will be filtered
+     * and all protected fields will be removed.
+     * 
+     * Note: The existence of protected fields in the Request Input data doesn't mean the request
+     * will fail, it will be just removed from the input data (i.e. ignored!)
+    */
     protected function filter_input_fields()
     {
         if ($this->request->method == REQUEST_POST)
@@ -323,6 +367,19 @@ class RestResource extends CI_Controller
         }
     }
 
+    /**
+     * Filters the output data fields based on $excluded_fields
+     * 
+     * @example 
+     * if $output = array("name" => "Jon", "secret" => "1234")
+     * and $excluded_fields = array('secret')
+     * then 'secret' field should be excluded
+     * hence, the returned $output will be array("name" => "Jon")
+     * 
+     * @param mixed $output Output data to be filtered
+     * 
+     * @return mixed Output Data being after filtering
+    */
     protected function filter_output_fields($output)
     {
         if (is_array($output))
@@ -354,76 +411,180 @@ class RestResource extends CI_Controller
         return $output;
     }
 
+    /**
+     * Returns request Input data.
+     * 
+     * @return mixed XSS cleaned Input data.
+    */
     protected function get_data()
     {
         return $this->request->data();
     }
 
+    /**
+     * Returns XSS clean input data.
+     * 
+     * This method is made to be overriden in case Developer needs to process data before they are
+     * used by rest_ methods.
+     *  
+     * @return mixed Output Data being after filtering
+    */
     protected function process_input_data()
     {
         // Load Data - XSS Clean!
         return $this->get_data();
     }
 
-    // Process O/P Data
+    /**
+     * Process output data before being sent. Basic implementation filters the output data.
+     *  
+     * @param mixed $data Output data before filtering
+     * 
+     * @return mixed Returns filtered Output Data
+    */
     protected function process_output_data($data)
     {
         return $this->filter_output_fields($data);
     }
     
-    /*METHODS REST HANDLERS*/
-
+    /**
+     * REST Handler for GET Requests. Returns the response Data.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
     protected function rest_get()
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * REST Handler for POST Requests. Returns the response Data.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
     protected function rest_post()
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * REST Handler for PUT Requests. Returns the response Data.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
     protected function rest_put()
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * REST Handler for DELETE Requests. Returns the response Data.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
     protected function rest_delete()
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
-    /* MODEL HANDLERS*/
-
+    /**
+     * Method responsible for New Model (Object/Resource) Creation.
+     * Mainly called from @method rest_post.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param mixed $data Sufficient Input data for creating the new Object/Resource
+     * 
+     * @return mixed Returns representation of newely created Object/Resource (pref. array())
+    */
     protected function model_create($data)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * Method responsible for Model (Object/Resource) Retrieval.
+     * Mainly called from @method rest_get.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param mixed $id Expected to be a unique ID for the requested Object
+     * 
+     * @return mixed Returns representation of retrieved Object/Resource (pref. array())
+    */
     protected function model_get($id)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * Method responsible for Model (Object/Resource) Update.
+     * Mainly called from @method rest_put.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param mixed $id Expected to be a unique ID for the requested Object to be updated
+     * @param mixed $data Sufficient Input data for updating the Object/Resource
+     * 
+     * @return mixed Returns representation of updated Object/Resource (pref. array())
+    */
     protected function model_update($id, $data)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
+    /**
+     * Method responsible for Model (Object/Resource) Deletion.
+     * Mainly called from @method rest_delete.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param mixed $id Expected to be a unique ID for the requested Object to be deleted
+     * 
+     * @return null Returns NULL
+    */
     protected function model_delete($id)
     {
         // Should be Implemented in Resource
         return NULL;
     }
 
-    /*Meta*/
+    /**
+     * Constructs the initail meta data array, if required.
+     *  
+     * Notes: Override to add extra key/values in meta array.
+     * 
+     * @example array('timestamp' => 123456789)
+     * 
+     * @return array Returns Meta Data array
+    */
     protected function get_meta()
     {
         $meta = array();
@@ -435,24 +596,36 @@ class RestResource extends CI_Controller
         return $meta;
     }
 
-    /*Check if request is allowed*/
+    /**
+     * Check if the Request Method is allowed for this Resource.
+     * 
+     * If Request Method is not allowed, it immidiately exits with 405 METHOD NOT ALLOWED error.
+     * 
+     * @return void
+    */
     private function _check_allowed()
     {
-        //exit($this->response->format);
         if (in_array($this->request->method, $this->allowed_methods))
         {
             if(in_array($this->request->format, $this->api_format) &&
                 in_array($this->response->format, $this->api_format))
             {
-                return TRUE;
+                return;
             }
         }
 
-        /*TODO: Exit with Immediate "Method Not Allowed" response!*/
+        //Exit with Immediate "Method Not Allowed" response!
         $this->response->http_405($this->allowed_methods);
     }
 
-    /*Authentication*/
+    /**
+     * Checks if the Request is Authenticated.
+     * 
+     * Calls methods in @link $authentication
+     * If all Authentication methods failed, it immidiately exits with 401 UNAUTHORIZED error.
+     * 
+     * @return void
+    */
     private function _authenticate()
     {
         /*By default, All requests authenticated unless we have authentication methods!*/
@@ -463,20 +636,27 @@ class RestResource extends CI_Controller
                 call_user_func(array($this, $_authenticate)))
             {
                 // One successful Authentication is sufficient!
-                return TRUE;
+                return;
             }
         }
 
         if($authenticated)
         {
-            return TRUE;
+            return;
         }
     
         // No Luck for Authentication. Exit with 401!
         $this->response->http_401("Unauthorized");
     }
 
-    /*Authorization*/
+    /**
+     * Checks if the Request is Authorized.
+     * 
+     * Calls methods in @link $authorization
+     * If One Authorization methods failed, it immidiately exits with 401 UNAUTHORIZED error.
+     * 
+     * @return void
+    */
     private function _authorize()
     {
         /*By default, All requests authorized unless we have authorization methods!*/
@@ -500,7 +680,14 @@ class RestResource extends CI_Controller
         $this->response->http_401("Unauthorized");
     }
 
-    /*Validation*/
+    /**
+     * Checks if the Request is Valid.
+     * 
+     * Calls method in @link $validate
+     * If methods returned FALSE, it immidiately exits with 400 BAD REQUEST error.
+     * 
+     * @return void
+    */
     private function _validate()
     {
         // First, filter our Input Data
