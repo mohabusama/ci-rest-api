@@ -614,7 +614,7 @@ class RestResource extends CI_Controller
             }
         }
 
-        //Exit with Immediate "Method Not Allowed" response!
+        // Exit with Immediate "Method Not Allowed" response!
         $this->response->http_405($this->allowed_methods);
     }
 
@@ -709,29 +709,130 @@ class RestResource extends CI_Controller
     }
 }
 
+
+/**
+ * RestModelResource Class
+ * 
+ * This class extends @link RestResource with slight modifications (Overrides!). The purpose of this
+ * class is to Expose your Model via REST API.
+ * Supported HTTP Methods: GET, POST, PUT, DELETE
+ * Supported Model Classes: DataMapper
+ * 
+ * Most of this class methods can be overriden to give the developer full control over the whole
+ * process.
+ * 
+ * A REST API call Life cycle goes as follows:
+ * - __construct method initializes the class with Request and Response objects
+ * - handle_request method is overriden with a step of Model Wrraper RestModel Initialization. 
+ *   It uses method get_object_instance() to retrieve the Model Wrapper Object to work with.
+ * - rest_get(), rest_post(), rest_put and rest_delete() methods are responsible for preparing the
+ *   next model operation. A call to @method get_object_id() is done to retrieve the ID of the 
+ *   requested object *if exists!*
+ * - @method get_object_id() can be overriden by Developer to return the ID of the object. Default
+ *   behavior described with the method implementation below.
+ *   model_create(), model_get(), model_get_all(), model_update() and model_delete() methods 
+ *   are implemented to apply default Model operations.
+ *  
+ * @package Restapi
+ */
 class RestModelResource extends RestResource
 {
-    /*The Model represented by this reource*/
+    /**
+     * Name of Model
+     * This property is overriden with the name of the Model which will be exposed as REST API by 
+     * RestModelResource.
+     * 
+     * @example protected $model_class = 'User';
+     * @var string
+     */
     protected $model_class = '';
 
+    /**
+     * Number of Results per API call
+     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
+     * paging when combined with @link $offset variable
+     * 
+     * Default is 50 results.
+     * 
+     * @var int
+     */
     protected $limit = 50;
+
+    /**
+     * Limit arg name passed as URL arg
+     * 
+     * @example This is a GET API call that sets the Limit result to 100
+     * http://yourhost/users?limit=100
+     * @var string
+     */
     protected $limit_arg_name = 'limit';
 
+    /**
+     * Starting offset of the objects ti be retrieved
+     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
+     * paging when combined with @link $limit variable
+     * 
+     * Default is 0 (i.e. start with first object in DB)
+     * 
+     * @var int
+     */
     protected $offset = 0;
+
+    /**
+     * Offset arg name passed as URL arg
+     * 
+     * @example This is a GET API call that sets the Offset set to 100 and limit to 100
+     * http://yourhost/users?limit=100&offset=100
+     * 
+     * @var string
+     */
     protected $offset_arg_name = 'offset';
 
-    // The index of the object ID in the URI. Default is -1 (which means the last element in URI)
+    /**
+     * The index of the object ID in the URI.
+     * Default is -1 (which means the last element in URI)
+     * 
+     * Important Note: This is the basic behavior. It might not suit every case. In case this 
+     * is not the desired way of retrieving the ID from URI, please refer to @method get_object_id()
+     * 
+     * @example protected $object_id_uri_index = -1;
+     * http://yourhost/users/               object ID = NULL, no object ID specified/detected
+     * http://yourhost/users/1              object ID = 1
+     * http://yourhost/users/200            object ID = 200
+     * http://yourhost/users/2/blogs/10/    object ID = 10
+     * 
+     * @var int
+     */
     protected $object_id_uri_index = -1;
 
-    // The RestModel Loaded Object!
+    /**
+     * The Loaded RestModel Object!
+     * This objects acts as a Wrapper for all Model operations.
+     * 
+     * @var RestModel
+     */
     private $obj = NULL;
 
+    /**
+     * Private flag for whether to add meta data or not.
+     * This is usually set to false if it is a GET operation.
+     * 
+     * Meta Data added:
+     * - count: count of objects returned in result
+     * - total: total number of objects in DB
+     * - limit: limit value applied to this GET operation
+     * - offset: offset value applied to this GET operation
+     * 
+     * @var bool
+     */
     private $add_model_meta = FALSE;
 
-
-    // OVERRIDDEN PROPERTIES //
-
-    // By default, caller cannot supply ID for creating new object!
+    /**
+     * Overrided property.
+     * By default, caller cannot supply ID for creating new object (POST API call)
+     * 
+     * @var array
+     */
     protected $protected_post_fields = array('id');
 
     public function __construct()
