@@ -88,6 +88,47 @@ class RestResource extends CI_Controller
     protected $api_format = array('json', 'xml');
 
     /**
+     * Number of Results per API call
+     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
+     * paging when combined with @link $offset variable
+     * 
+     * Default is 50 results.
+     * 
+     * @var int
+     */
+    protected $limit = 50;
+
+    /**
+     * Limit arg name passed as URL arg
+     * 
+     * @example This is a GET API call that sets the Limit result to 100
+     * http://yourhost/users?limit=100
+     * @var string
+     */
+    protected $limit_arg_name = 'limit';
+
+    /**
+     * Starting offset of the objects ti be retrieved
+     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
+     * paging when combined with @link $limit variable
+     * 
+     * Default is 0 (i.e. start with first object in DB)
+     * 
+     * @var int
+     */
+    protected $offset = 0;
+
+    /**
+     * Offset arg name passed as URL arg
+     * 
+     * @example This is a GET API call that sets the Offset set to 100 and limit to 100
+     * http://yourhost/users?limit=100&offset=100
+     * 
+     * @var string
+     */
+    protected $offset_arg_name = 'offset';
+
+    /**
      * Add one -or- multiple authentications methods. One successful authentication is enough!
      * Authentication method should be implemented in Resource Class, and should be added as string.
      * Authentication method should return either TRUE or FALSE. TRUE means the request will
@@ -256,6 +297,9 @@ class RestResource extends CI_Controller
 
         $this->response = new Response($this, $default_format);
 
+        $this->limit = $this->get_limit();
+        $this->offset = $this->get_offset();
+
         // Start handling the request. This is our entry point to real action!
         $this->handle_request();
     }
@@ -419,6 +463,28 @@ class RestResource extends CI_Controller
     protected function get_data()
     {
         return $this->request->data();
+    }
+
+    /**
+     * Gets the @link $limit value from URL args
+     * 
+     * @return int
+     */
+    protected function get_limit()
+    {
+        $limit = $this->request->args($this->limit_arg_name);
+        return ($limit !== FALSE) ? intval($limit) : $this->limit;
+    }
+
+    /**
+     * Gets the @link $offset value from URL args
+     * 
+     * @return int
+     */
+    protected function get_offset()
+    {
+        $offset = $this->request->args($this->offset_arg_name);
+        return ($offset !== FALSE) ? intval($offset) : $this->offset;
     }
 
     /**
@@ -748,47 +814,6 @@ class RestModelResource extends RestResource
     protected $model_class = '';
 
     /**
-     * Number of Results per API call
-     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
-     * paging when combined with @link $offset variable
-     * 
-     * Default is 50 results.
-     * 
-     * @var int
-     */
-    protected $limit = 50;
-
-    /**
-     * Limit arg name passed as URL arg
-     * 
-     * @example This is a GET API call that sets the Limit result to 100
-     * http://yourhost/users?limit=100
-     * @var string
-     */
-    protected $limit_arg_name = 'limit';
-
-    /**
-     * Starting offset of the objects ti be retrieved
-     * This mainly applies when retrieving multiple objects (using a GET request) and is useful for
-     * paging when combined with @link $limit variable
-     * 
-     * Default is 0 (i.e. start with first object in DB)
-     * 
-     * @var int
-     */
-    protected $offset = 0;
-
-    /**
-     * Offset arg name passed as URL arg
-     * 
-     * @example This is a GET API call that sets the Offset set to 100 and limit to 100
-     * http://yourhost/users?limit=100&offset=100
-     * 
-     * @var string
-     */
-    protected $offset_arg_name = 'offset';
-
-    /**
      * The index of the object ID in the URI.
      * Default is -1 (which means the last element in URI)
      * 
@@ -835,11 +860,20 @@ class RestModelResource extends RestResource
      */
     protected $protected_post_fields = array('id');
 
+    /**
+     * Construct method
+     * 
+     */
     public function __construct()
     {
         parent::__construct();        
     }
 
+    /**
+     * Overriden @method handle_request()
+     * It adds RestModel object instantiation @link $obj
+     * 
+     */
     protected function handle_request()
     {
         // Instantiate our Object, doing our Model Specific thingie
@@ -849,14 +883,15 @@ class RestModelResource extends RestResource
             $this->response->http_500('Failed to Instantiate object!');
         }
 
-        // Limit and Offset can be useful in pagination
-        $this->limit = $this->get_limit();
-        $this->offset = $this->get_offset();
-
         // Call Default Handler
         parent::handle_request();
     }
 
+    /**
+     * Get RestModel object
+     * 
+     * @return RestModel
+     */
     private function get_object_instance()
     {
         if (! $this->model_class)
@@ -867,6 +902,15 @@ class RestModelResource extends RestResource
         return new RestModel($this->model_class);
     }
 
+    /**
+     * Get object ID
+     * Default behavior depends on @link $object_id_uri_index
+     * Can be overriden by Developer
+     * 
+     * Note: returning NULL means ID was not found in URI
+     * 
+     * @return int
+     */
     protected function get_object_id()
     {
         // Default, is the last URI Arg (e.g. /users/1/ then 1 is the id, as users is index 0)
@@ -879,20 +923,16 @@ class RestModelResource extends RestResource
         return $id;
     }
 
-    protected function get_limit()
-    {
-        $limit = $this->request->args($this->limit_arg_name);
-        return ($limit !== FALSE) ? intval($limit) : $this->limit;
-
-    }
-
-    protected function get_offset()
-    {
-        $offset = $this->request->args($this->offset_arg_name);
-        return ($offset !== FALSE) ? intval($offset) : $this->offset;
-    }
-
-    // META
+    /**
+     * Overriden @method get_meta()
+     * if @link $add_model_meta is TRUE, it adds the following to the meta data:
+     * - count: count of objects returned in result
+     * - total: total number of objects in DB
+     * - limit: limit value applied to this GET operation
+     * - offset: offset value applied to this GET operation
+     * 
+     * @return array
+     */
     protected function get_meta()
     {
         $meta = parent::get_meta();
@@ -908,7 +948,12 @@ class RestModelResource extends RestResource
         return $meta;
     }
 
-    // POST
+    /**
+     * Overriden @method rest_post()
+     * Prepares data for @method model_create()
+     * 
+     * @return array Processed output data
+     */
     protected function rest_post()
     {
         // Load Data
@@ -921,6 +966,15 @@ class RestModelResource extends RestResource
         return $this->process_output_data($res);
     }
 
+    /**
+     * Overriden @method model_create()
+     * Loads @link $obj with data, Validates it and saves the new object in DB
+     * 
+     * If data is not valid it exits with @link HTTP_RESPONSE_BAD_REQUEST 400
+     * If Save operation failed it exits with @link HTTP_RESPONSE_INTERNAL_ERROR 500
+     * 
+     * @return array Representation of the saved object
+     */
     protected function model_create($data)
     {
         // Load Object with Data
@@ -943,7 +997,12 @@ class RestModelResource extends RestResource
         return $this->obj->to_array();
     }
 
-    // GET
+    /**
+     * Overriden @method rest_get()
+     * Prepares data for @method model_get() or model_get_all()
+     * 
+     * @return array Processed output data
+     */
     protected function rest_get()
     {
         // Check if there is an `id`. i.e. retrieving specific object
@@ -962,6 +1021,14 @@ class RestModelResource extends RestResource
         return $this->process_output_data($res);
     }
 
+    /**
+     * Overriden @method model_get()
+     * Retrieves specific object with $id from DB
+     * 
+     * If object was not found` it exits with @link HTTP_RESPONSE_NOT_FOUND 404
+     * 
+     * @return array Representation of the retrieved object
+     */
     protected function model_get($id)
     {
         // Get the specified object
@@ -974,6 +1041,14 @@ class RestModelResource extends RestResource
         return $this->obj->to_array();
     }
 
+    /**
+     * Overriden @method model_get_all()
+     * Retrieves array of objects based on @link $offset and @link $limit
+     * 
+     * If object was not found` it exits with @link HTTP_RESPONSE_NOT_FOUND 404
+     * 
+     * @return array Representation of the retrieved objects
+     */
     protected function model_get_all()
     {
         // Get the specified object
@@ -987,7 +1062,15 @@ class RestModelResource extends RestResource
         return $this->obj->to_array();
     }
 
-    // PUT
+    /**
+     * Overriden @method rest_put()
+     * Prepares data for @method model_update()
+     * 
+     * Note: Right now, it only supports updating Single object, this is why if no object id was
+     * found it exits with HTTP_RESPONSE_NOT_FOUND
+     * 
+     * @return array Processed output data
+     */
     protected function rest_put()
     {
         // Check if there is an `id`. i.e. retrieving specific object
@@ -1006,6 +1089,16 @@ class RestModelResource extends RestResource
         return $this->process_output_data($res);
     }
 
+    /**
+     * Overriden @method model_update()
+     * Updates a certain object with $id
+     * 
+     * If object was not found it exits with @link HTTP_RESPONSE_NOT_FOUND 404
+     * If data was not valid it exits with @link HTTP_RESPONSE_BAD_REQUEST
+     * If update failed it exits with @link HTTP_RESPONSE_INTERNAL_ERROR
+     * 
+     * @return array Representation of the retrieved objects
+     */
     protected function model_update($id, $data)
     {
         // Get the specified object
@@ -1035,7 +1128,15 @@ class RestModelResource extends RestResource
         return $this->obj->to_array();
     }
 
-    // DELETE
+    /**
+     * Overriden @method rest_delete()
+     * Prepares data for @method model_delete()
+     * 
+     * Note: Right now, it only supports deleting Single object, this is why if no object id was
+     * found it exits with HTTP_RESPONSE_NOT_FOUND
+     * 
+     * @return array Processed output data
+     */
     protected function rest_delete()
     {
         // Check if there is an `id`. i.e. retrieving specific object
@@ -1052,6 +1153,14 @@ class RestModelResource extends RestResource
         return NULL;
     }
 
+    /**
+     * Overriden @method model_delete()
+     * Deletes a certain object with $id
+     * 
+     * If object was not found it exits with @link HTTP_RESPONSE_NOT_FOUND 404
+     * 
+     * @return null
+     */
     protected function model_delete($id)
     {
         // Get the specified object
@@ -1062,6 +1171,8 @@ class RestModelResource extends RestResource
         }
 
         $this->obj->delete();
+
+        return NULL;
     }
 }
 
