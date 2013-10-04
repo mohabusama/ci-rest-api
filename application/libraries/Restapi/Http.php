@@ -113,7 +113,7 @@ class Request
      * Loads all @link $_data , @link $_args , @link $_uri
      * 
      * @param RestResource $resource
-     * @param string $default_format Default formar of Request.
+     * @param string $default_format Default format of Request.
      * 
      * @return void
      */
@@ -156,7 +156,7 @@ class Request
         }
         else
         {
-            //In case of POST, PUT or DELETE
+            // In case of POST, PUT or DELETE
             if ($this->format)
             {
                 $body = file_get_contents('php://input');
@@ -164,7 +164,7 @@ class Request
             }
             elseif($this->method == REQUEST_POST)
             {
-                //Regular Form POST (i.e. application/x-www-form-urlencoded)
+                // Regular Form POST (i.e. application/x-www-form-urlencoded)
                 $post_data = $input->post();
                 $this->_data = $post_data ? $post_data : array();
             }
@@ -275,75 +275,195 @@ class Request
 
 class Response
 {
-    private $_header = array();
+    /**
+     * Private array holding all Response Headers.
+     * Use @method set_header() to add/update a header.
+     * 
+     * @var array
+     */
+    private $_headers = array();
 
+    /**
+     * Response format. Default is 'json'.
+     * 
+     * @var string
+     */
     public $format = 'json';
 
+    /**
+     * Response Body.
+     *
+     * Note: Normaly, this value is set by @method http_exit() based on the $output param. It is 
+     * kept public just to give the Developer an option to set the reponse body explicitly.
+     * 
+     * @var string
+     */
     public $body = '';
 
+    /**
+     * Default HTTP Response Status code.
+     * 
+     * @var array
+     */
     public $status = HTTP_RESPONSE_OK;
 
+    /**
+     * Construct method
+     * 
+     * Detects Response fromat @link $format
+     * 
+     * @param RestResource $resource
+     * @param string $default_format Default format of Request.
+     * 
+     * @return void
+     */
     public function __construct($resource, $default_format='json')
     {
         $output_format = RestFormat::get_output_format($resource->request->args());
         $this->format = $output_format ? $output_format : $default_format;
     }
 
+    /**
+     * Adds a new Header to the Response.
+     * 
+     * @param string $value The new header added.
+     * 
+     * @example $this->response->set_header('My-Custom-Header: ver-1.0.1');
+     * @return void
+     */
     public function set_header($value)
     {
-        $this->_header[] = $value;
+        $this->_headers[] = $value;
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 200 @link HTTP_RESPONSE_OK
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_200($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_OK);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 201 @link HTTP_RESPONSE_CREATED
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_201($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_CREATED);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 204 @link HTTP_RESPONSE_NO_CONTENT
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_204($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_NO_CONTENT);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 400 @link HTTP_RESPONSE_BAD_REQUEST
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_400($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_BAD_REQUEST);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 401 @link HTTP_RESPONSE_UNAUTHORIZED
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_401($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_UNAUTHORIZED);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 403 @link HTTP_RESPONSE_FORBIDDEN
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_403($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_FORBIDDEN);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 404 @link HTTP_RESPONSE_NOT_FOUND
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_404($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_NOT_FOUND);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 405 @link HTTP_RESPONSE_NOT_ALLOWED
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_405($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_NOT_ALLOWED);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 500 @link HTTP_RESPONSE_INTERNAL_ERROR
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_500($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_INTERNAL_ERROR);
     }
 
+    /**
+     * Send Immidiate Response with HTTP Status Code 501 @link HTTP_RESPONSE_NOT_IMPLEMENTED
+     * 
+     * @param mixed $output Output Data.
+     * 
+     * @return void
+     */
     public function http_501($output="")
     {
         $this->http_exit($output, HTTP_RESPONSE_NOT_IMPLEMENTED);
     }
 
+    /**
+     * Send Immidiate Response to the client.
+     * 
+     * @param mixed $output Output Data.
+     * @param string $status HTTP Status code.
+     * 
+     * @return void
+     */
     public function http_exit($output, $status=NULL)
     {
         if($status)
@@ -357,11 +477,11 @@ class Response
         header('Content-Type: ' . RestFormat::get_content_type($this->format));
 
         // Set Headers
-        foreach ($this->_header as $value) {
+        foreach ($this->_headers as $value) {
             header($value);
         }
 
-        // TODO: Add option for Expiration & No cache headers! Might be a Security Req.
+        // @todo : Add option for Expiration & No cache headers! Might be a Security Req.
 
         // Format o/p data as desired!
         $this->body = RestFormat::encode_output_data($output, $this->format);
