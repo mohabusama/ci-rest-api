@@ -111,8 +111,13 @@ class RestModel
      * 
      * @return bool
      */
-    public function get_all($limit=50, $offset=0)
+    public function get_all($limit=50, $offset=0, $where=NULL)
     {
+        if (is_array($where) && count($where))
+        {
+            $this->obj->where($where);
+        }
+
         $this->obj->get_iterated($limit, $offset);
 
         return TRUE;

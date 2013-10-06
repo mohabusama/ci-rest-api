@@ -9,8 +9,8 @@ class Users extends RestModelResource
     protected $add_meta = TRUE;
     protected $meta_timestamp = TRUE;
 
-    public function __construct()
+    protected function get_object_selection()
     {
-        parent::__construct();
+        return array('phone' => null);
     }
 }

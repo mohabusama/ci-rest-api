@@ -754,7 +754,6 @@ class RestResource extends CI_Controller
     }
 }
 
-
 /**
  * RestModelResource Class
  * 
@@ -903,6 +902,21 @@ class RestModelResource extends RestResource
     }
 
     /**
+     * Returns an Array which will be used as Where selection 
+     * 
+     * Developers can override this method to specify certain selection criteria 
+     * in @method model_get_all()
+     * 
+     * @example return array('owner' => 5, 'tag' => 'history');
+     * 
+     * @return array|null
+     */
+    protected function get_object_selection()
+    {
+        return NULL;
+    }
+
+    /**
      * Overriden @method get_meta()
      * if @link $add_model_meta is TRUE, it adds the following to the meta data:
      * - count: count of objects returned in result
@@ -994,7 +1008,8 @@ class RestModelResource extends RestResource
         {
             // Add Meta to result
             $this->add_model_meta = TRUE;
-            $res = $this->model_get_all();
+            $where = $this->get_object_selection();
+            $res = $this->model_get_all($where);
         }
 
         return $this->process_output_data($res);
@@ -1026,12 +1041,16 @@ class RestModelResource extends RestResource
      * 
      * If object was not found` it exits with @link HTTP_RESPONSE_NOT_FOUND 404
      * 
+     * @param array $where Array of Key/Value pairs used as Where condition.
+     * 
+     * @example $this->model_get_all(array('owner' => 5));
+     * 
      * @return array Representation of the retrieved objects
      */
-    protected function model_get_all()
+    protected function model_get_all($where=NULL)
     {
         // Get the specified object
-        if (! $this->obj->get_all($this->limit, $this->offset))
+        if (! $this->obj->get_all($this->limit, $this->offset, $where))
         {
             // 404 NOT FOUND
             $error = $this->obj->error();
@@ -1063,7 +1082,7 @@ class RestModelResource extends RestResource
         // Load Data
         $data = $this->process_input_data();
 
-        $res = $this->model_update($id);
+        $res = $this->model_update($id, $data);
 
         return $this->process_output_data($res);
     }
