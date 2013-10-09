@@ -279,6 +279,9 @@ class RestResource extends CI_Controller
         $this->limit = $this->get_limit();
         $this->offset = $this->get_offset();
 
+        // Load all necessary libs
+        $this->lib_loader();
+
         // Start handling the request. This is our entry point to real action!
         $this->handle_request();
     }
@@ -642,6 +645,18 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Override to load any necessary CodeIgniter libraries before starting handling the request.
+     * 
+     * @example $this->load->library('session');
+     * 
+     * @return null
+    */
+    protected function lib_loader()
+    {
+        return NULL;
+    }
+
+    /**
      * Check if the Request Method is allowed for this Resource.
      * 
      * If Request Method is not allowed, it immidiately exits with 405 METHOD NOT ALLOWED error.
@@ -930,9 +945,11 @@ class RestModelResource extends RestResource
     {
         $meta = parent::get_meta();
 
+        $where = $this->get_object_selection();
+
         if ($this->add_model_meta)
         {
-            $meta['total'] = $this->obj->count();
+            $meta['total'] = $this->obj->count($where);
             $meta['count'] = $this->obj->result_count();
             $meta['limit'] = $this->limit;
             $meta['offset'] = $this->offset;

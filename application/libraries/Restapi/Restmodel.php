@@ -211,13 +211,22 @@ class RestModel
     /**
      * Count of objects in DB
      * 
+     * @param array $where Array of Where conditions applied to count
+     * 
      * @return int Count of objects in DB
      */
-    public function count()
+    public function count($where=NULL)
     {
         $obj = new $this->model_class;
 
-        return $obj->count();        
+        if ($where)
+        {
+            // Conditional count
+            return $obj->where($where)->count();
+        }
+
+        // All Objects!
+        return $obj->count();
     }
 
     /**
