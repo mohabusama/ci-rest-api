@@ -372,6 +372,38 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Returns request Input data.
+     * 
+     * @return mixed XSS cleaned Input data.
+    */
+    protected function get_data()
+    {
+        return $this->request->data();
+    }
+
+    /**
+     * Gets the @link $limit value from URL args
+     * 
+     * @return int
+     */
+    protected function get_limit()
+    {
+        $limit = $this->request->args($this->limit_arg_name);
+        return ($limit !== FALSE) ? intval($limit) : $this->limit;
+    }
+
+    /**
+     * Gets the @link $offset value from URL args
+     * 
+     * @return int
+     */
+    protected function get_offset()
+    {
+        $offset = $this->request->args($this->offset_arg_name);
+        return ($offset !== FALSE) ? intval($offset) : $this->offset;
+    }
+
+    /**
      * Filters the input data fields based on Request Method and $protected_post_fields and
      * $protected_put_fields.
      * 
@@ -437,37 +469,6 @@ class RestResource extends CI_Controller
         return $output;
     }
 
-    /**
-     * Returns request Input data.
-     * 
-     * @return mixed XSS cleaned Input data.
-    */
-    protected function get_data()
-    {
-        return $this->request->data();
-    }
-
-    /**
-     * Gets the @link $limit value from URL args
-     * 
-     * @return int
-     */
-    protected function get_limit()
-    {
-        $limit = $this->request->args($this->limit_arg_name);
-        return ($limit !== FALSE) ? intval($limit) : $this->limit;
-    }
-
-    /**
-     * Gets the @link $offset value from URL args
-     * 
-     * @return int
-     */
-    protected function get_offset()
-    {
-        $offset = $this->request->args($this->offset_arg_name);
-        return ($offset !== FALSE) ? intval($offset) : $this->offset;
-    }
 
     /**
      * Returns XSS clean input data.
@@ -492,7 +493,41 @@ class RestResource extends CI_Controller
     */
     protected function process_output_data($data)
     {
-        return $this->filter_output_fields($data);
+        if (is_array($data))
+        {
+            if (is_assoc($data))
+            {
+                $filtered = $this->filter_output_fields($data);
+                return $this->process_output_object($filtered);
+            }
+            else
+            {
+                // This is list of objects
+                $filtered_list = array();
+                foreach ($data as $obj)
+                {
+                    $filtered = $this->filter_output_fields($obj);
+                    $filtered_list[] = $this->process_output_object($filtered);
+                }
+                return $filtered_list;
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Process output object.
+     * This method should be called for result object, and if the result is array, it will be called
+     * for each object in the result array.
+     *  
+     * @param array $obj Output object.
+     * 
+     * @return array Returns processed output object
+    */
+    protected function process_output_object($obj)
+    {
+        return $obj;
     }
     
     /**
