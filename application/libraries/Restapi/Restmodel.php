@@ -54,6 +54,13 @@ class RestModel
     private $obj = NULL;
 
     /**
+     * Private flag used by @method get_all() and @method to_array()
+     * 
+     * @var bool
+     */
+    private $is_array = FALSE;
+
+    /**
      * Error message. Probably set by Validation.
      * 
      * @var string
@@ -84,11 +91,17 @@ class RestModel
      * Loads @link $obj after retrieving by $id
      * 
      * @param int|string $id ID of the object
+     * @param array $where Array of Key/Value pairs used as Where condition.
      * 
      * @return bool TRUE if found, FALSE if not found.
      */
-    public function get($id)
+    public function get($id, $where=NULL)
     {
+        if (is_array($where) && count($where))
+        {
+            $this->obj->where($where);
+        }
+
         $this->obj->get_by_id($id);
 
         if (! $this->obj->id)
@@ -108,6 +121,7 @@ class RestModel
      * 
      * @param int $limit Maximum limit of result to be retrieved
      * @param int $offset Starting offset in DB of the results
+     * @param array $where Array of Key/Value pairs used as Where condition.
      * 
      * @return bool
      */
@@ -119,6 +133,8 @@ class RestModel
         }
 
         $this->obj->get_iterated($limit, $offset);
+
+        $this->is_array = TRUE;
 
         return TRUE;
     }
@@ -292,7 +308,7 @@ class RestModel
         {
             return array();
         }
-        elseif ($this->obj->result_count() > 1)
+        elseif ($this->obj->result_count() > 1 || $this->is_array)
         {
             // Returning Array of objects
             $res = array();

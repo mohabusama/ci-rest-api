@@ -440,35 +440,21 @@ class RestResource extends CI_Controller
     */
     protected function filter_output_fields($output)
     {
-        if (is_array($output))
+        if (is_assoc($output))
         {
-            if (is_assoc($output))
+            // This is the object details
+            foreach ($this->excluded_fields as $field)
             {
-                // This is the object details
-                foreach ($this->excluded_fields as $field)
+                if (array_key_exists($field, $output))
                 {
-                    if (array_key_exists($field, $output))
-                    {
-                        unset($output[$field]);
-                    }
+                    unset($output[$field]);
                 }
-                return $output;
             }
-            else
-            {
-                // This is list of objects
-                $filtered_list = array();
-                foreach ($output as $obj)
-                {
-                    $filtered_list[] = $this->filter_output_fields($obj);
-                }
-                return $filtered_list;
-            }
+            return $output;
         }
 
         return $output;
     }
-
 
     /**
      * Returns XSS clean input data.
@@ -611,10 +597,11 @@ class RestResource extends CI_Controller
      * the developer.
      * 
      * @param mixed $id Expected to be a unique ID for the requested Object
+     * @param array $where Array of Key/Value pairs used as Where condition.
      * 
      * @return mixed Returns representation of retrieved Object/Resource (pref. array())
     */
-    protected function model_get($id)
+    protected function model_get($id, $where=NULL)
     {
         // Should be Implemented in Resource
         return NULL;
@@ -937,7 +924,7 @@ class RestModelResource extends RestResource
      * 
      * Note: returning NULL means ID was not found in URI
      * 
-     * @return int
+     * @return int|string|null
      */
     protected function get_object_id()
     {
@@ -1052,15 +1039,15 @@ class RestModelResource extends RestResource
     {
         // Check if there is an `id`. i.e. retrieving specific object
         $id = $this->get_object_id();
+        $where = $this->get_object_selection();
         if ($id !== NULL)
         {
-            $res = $this->model_get($id);
+            $res = $this->model_get($id, $where);
         }
         else
         {
             // Add Meta to result
             $this->add_model_meta = TRUE;
-            $where = $this->get_object_selection();
             $res = $this->model_get_all($where);
         }
 
@@ -1073,12 +1060,14 @@ class RestModelResource extends RestResource
      * 
      * If object was not found` it exits with @link HTTP_RESPONSE_NOT_FOUND 404
      * 
+     * @param array $where Array of Key/Value pairs used as Where condition.
+     * 
      * @return array Representation of the retrieved object
      */
-    protected function model_get($id)
+    protected function model_get($id, $where=NULL)
     {
         // Get the specified object
-        if (! $this->obj->get($id))
+        if (! $this->obj->get($id, $where))
         {
             // 404 NOT FOUND
             $this->response->http_404('Error 404. Not Found');
