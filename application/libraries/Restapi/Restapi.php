@@ -829,6 +829,18 @@ class RestModelResource extends RestResource
     protected $model_class = '';
 
     /**
+     * The Field name of the Object ID.
+     * 
+     * The object will be searched/updated/deleted based on that field name.
+     * Default is 'id'
+     * 
+     * @example protected $model_id_field_name = 'guid';
+     * 
+     * @var string
+     */
+    protected $model_id_field_name = 'id';
+
+    /**
      * The index of the object ID in the URI.
      * Default is -1 (which means the last element in URI)
      * 
@@ -851,7 +863,7 @@ class RestModelResource extends RestResource
      * 
      * @var RestModel
      */
-    private $obj = NULL;
+    protected $obj = NULL;
 
     /**
      * Private flag for whether to add meta data or not.
@@ -914,7 +926,7 @@ class RestModelResource extends RestResource
             return NULL;
         }
 
-        return new RestModel($this->model_class);
+        return new RestModel($this->model_class, $this->model_id_field_name);
     }
 
     /**

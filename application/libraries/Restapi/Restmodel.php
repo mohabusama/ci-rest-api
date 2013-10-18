@@ -47,6 +47,14 @@ class RestModel
     private $model_class = '';
 
     /**
+     * The Model ID field name.
+     * Can only be set via @method __consruct()
+     * 
+     * @var string
+     */
+    private $model_id_field_name = 'id';
+
+    /**
      * This is the Private instance of the Model (Object) @link $model_class.
      * 
      * @var object
@@ -76,13 +84,27 @@ class RestModel
      * 
      * @return void
      */
-    public function __construct($model_class)
+    public function __construct($model_class, $id_field='id')
     {
         $this->model_class = $model_class;
+
+        $this->model_id_field_name = $id_field;
 
         $this->obj = new $model_class;
 
         $this->model_type = $this->_get_model_type();
+    }
+
+    public function get_object_instance($id=NULL)
+    {
+        $obj = new $this->model_class;
+
+        if ($id)
+        {
+            $obj->{"get_by_$this->model_id_field_name"}($id);
+        }
+
+        return $obj;
     }
 
     /**
@@ -102,7 +124,7 @@ class RestModel
             $this->obj->where($where);
         }
 
-        $this->obj->get_by_id($id);
+        $this->obj->{"get_by_$this->model_id_field_name"}($id);
 
         if (! $this->obj->id)
         {
@@ -214,7 +236,7 @@ class RestModel
     {
         $obj = new $this->model_class;
 
-        $obj->get_by_id($id);
+        $obj->{"get_by_$this->model_id_field_name"}($id);
 
         if(! $obj->id)
         {
@@ -267,7 +289,7 @@ class RestModel
     {
         if ($id)
         {
-            $this->obj->get_by_id($id);
+            $this->obj->{"get_by_$this->model_id_field_name"}($id);
         }
 
         if (!is_array($data) || !$this->obj->from_array($data))
