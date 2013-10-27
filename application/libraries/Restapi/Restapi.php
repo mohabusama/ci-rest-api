@@ -64,7 +64,7 @@ class RestResource extends CI_Controller
      * 
      * @var array
      */
-    protected $api_format = array('json', 'xml');
+    protected $api_format = array('json');
 
     /**
      * Number of Results per API call
@@ -344,6 +344,12 @@ class RestResource extends CI_Controller
         $this->response->status = $this->get_default_status();
 
         $this->_result['result'] = $output;
+        if ($this->response->format == 'csv')
+        {
+            // Special case for CSV format, No Result and Meta keys!
+            $this->_result = $output;
+            $this->add_meta = FALSE;
+        }
 
         // Add META data to response if required!
         if($this->add_meta)
@@ -834,7 +840,15 @@ class RestModelResource extends RestResource
      * The object will be searched/updated/deleted based on that field name.
      * Default is 'id'
      * 
+     * Note: This property is added in case the developer doesn't want to expose the DB ID of
+     * objects in the URI, instead, this property will expose another unique property for the model
+     * (e.g. uuid, guid etc ...)
+     * 
      * @example protected $model_id_field_name = 'guid';
+     * The resource URI will look like:
+     * /resource/343df1279c3c700fb3a2a996b6191e0d
+     * instead of exposing the ID in DB
+     * /resource/4
      * 
      * @var string
      */

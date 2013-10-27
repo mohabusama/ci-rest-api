@@ -5,7 +5,7 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
 /**
 * Http Request and Response Classes
 * 
-* Implements classes to handle HTTP operations and Defines TTP related constants.
+* Implements classes to handle HTTP operations and Defines HTTP related constants.
 * 
 * @package Restapi
 * @subpackage Http
@@ -577,5 +577,43 @@ class RestFormat
     private function _encode_json($data)
     {
         return json_encode($data);
+    }
+
+    /**
+    * Encode Output data to CSV format.
+    * Original Implementation from Format Library from "codeigniter-restserver":
+    * https://github.com/philsturgeon/codeigniter-restserver
+    * 
+    * @author      Phil Sturgeon (Implementation)
+    * @license     http://philsturgeon.co.uk/code/dbad-license
+    * 
+    * @return string CSV formatted output
+    */
+    private function _encode_csv($data)
+    {
+        if (!is_array($data))
+        {
+            return $data;
+        }
+
+        // Multi-dimensional array
+        if (isset($data[0]) && is_array($data[0]))
+        {
+            $headings = array_keys($data[0]);
+        }
+        // Single array
+        else
+        {
+            $headings = array_keys($data);
+            $data = array($data);
+        }
+
+        $output = '"'.implode('","', $headings).'"'.PHP_EOL;
+        foreach ($data as $row)
+        {
+            $output .= '"'.implode('","', $row).'"'.PHP_EOL;
+        }
+
+        return $output;
     }
 }
