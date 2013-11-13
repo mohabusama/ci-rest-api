@@ -575,7 +575,35 @@ class RestResource extends CI_Controller
     }
 
     /**
-     * Method responsible for New Model (Object/Resource) Creation.
+     * REST Handler for HEAD Requests. Returns the Headers only, with No Data.
+     * It is mainly used to check if a Resource exist without retrieving the object. Cheaper than
+     * GET request specialy with Large resources.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
+    protected function rest_head()
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
+     * REST Handler for PATCH Requests. It is similar to PUT, but for Partial Updates.
+     *  
+     * Note: Basic implementation returns NULL. Needs to be overriden by Developer.
+     * 
+     * @return mixed Returns Response data
+    */
+    protected function rest_patch()
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
+     * Method responsible for Creating New Model (Object/Resource).
      * Mainly called from @method rest_post.
      *  
      * Notes:
@@ -588,6 +616,25 @@ class RestResource extends CI_Controller
      * @return mixed Returns representation of newely created Object/Resource (pref. array())
     */
     protected function model_create($data)
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
+     * Method responsible for Creating New Multiple Models (Object/Resource).
+     * Mainly called from @method rest_post.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param array $data Array of Sufficient Input data for creating the new Objects/Resources
+     * 
+     * @return array Returns Array of representation of newely created Objects/Resources
+    */
+    protected function model_create_all($data)
     {
         // Should be Implemented in Resource
         return NULL;
@@ -614,6 +661,23 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Method responsible for Multiple Model (Object/Resource) Retrieval.
+     * Mainly called from @method rest_get.
+     * Retrieves array of objects based on @link $offset and @link $limit
+     * 
+     * @param array $where Array of Key/Value pairs used as Where condition.
+     * 
+     * @example $this->model_get_all(array('owner' => 5));
+     * 
+     * @return array Representation of the retrieved objects
+     */
+    protected function model_get_all($where=NULL)
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
      * Method responsible for Model (Object/Resource) Update.
      * Mainly called from @method rest_put.
      *  
@@ -634,6 +698,28 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Method responsible for Multiple Model (Objects/Resources) Update.
+     * Mainly called from @method rest_put.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * @param mixed $data Sufficient Input data for updating the Object/Resource
+     * @param array $where Associative Array  used as Where condition.
+     * 
+     * @example $this->model_update_all($data, array('owner' => 5));
+     * 
+     * @return mixed Returns representation of updated Object/Resource (pref. array())
+    */
+    protected function model_update_all($data, $where=NULL)
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
      * Method responsible for Model (Object/Resource) Deletion.
      * Mainly called from @method rest_delete.
      *  
@@ -647,6 +733,31 @@ class RestResource extends CI_Controller
      * @return null Returns NULL
     */
     protected function model_delete($id)
+    {
+        // Should be Implemented in Resource
+        return NULL;
+    }
+
+    /**
+     * Method responsible for Multiple Model (Object/Resource) Deletion.
+     * Mainly called from @method rest_delete.
+     *  
+     * Notes:
+     * Basic implementation returns NULL. Needs to be overriden by Developer.
+     * This method exists for the sake of Separation Of Concerns. Overriding it is optional for
+     * the developer.
+     * 
+     * =============================================================================================
+     * Important: This is Very Dangerous to be implemented. Implement with Care!
+     * =============================================================================================
+     * 
+     * @param array $where Associative Array used as Where condition.
+     * 
+     * @example $this->model_delete_all(array('owner' => 5));
+     * 
+     * @return null Returns NULL
+    */
+    protected function model_delete_all($where)
     {
         // Should be Implemented in Resource
         return NULL;
@@ -880,7 +991,7 @@ class RestModelResource extends RestResource
     protected $obj = NULL;
 
     /**
-     * Private flag for whether to add meta data or not.
+     * Flag for whether to add meta data or not.
      * This is usually set to false if it is a GET operation.
      * 
      * Meta Data added:
@@ -891,7 +1002,7 @@ class RestModelResource extends RestResource
      * 
      * @var bool
      */
-    private $add_model_meta = FALSE;
+    protected $add_model_meta = FALSE;
 
     /**
      * Overrided property.
@@ -1017,8 +1128,16 @@ class RestModelResource extends RestResource
         // Load Data
         $data = $this->process_input_data();
 
-        // Create the new object and save it!
-        $res = $this->model_create($data);
+        if (is_array($data) && !is_assoc($data))
+        {
+            // Create new array of objects and save them!
+            $res = $this->model_create_all($data);
+        }
+        else
+        {
+            // Create the new object and save it!
+            $res = $this->model_create($data);            
+        }
 
         // Well, it seems we made it ...
         return $this->process_output_data($res);
@@ -1053,6 +1172,33 @@ class RestModelResource extends RestResource
         }
 
         return $this->obj->to_array();
+    }
+
+    /**
+     * Overriden @method model_create_all()
+     * Loads @link $obj with objects in data, Validates it and saves the new object in DB
+     * 
+     * If one object in data array is not valid it exits with @link HTTP_RESPONSE_BAD_REQUEST 400
+     * If Save operation failed it exits with @link HTTP_RESPONSE_INTERNAL_ERROR 500
+     * 
+     * @param array $data Array of Sufficient Input data for creating the new Objects/Resources
+     * 
+     * @return array Array of Representations of the saved objects
+     */
+    protected function model_create_all($data)
+    {
+        if (!is_array($data) || is_assoc($data))
+        {
+            $this->response->http_400("Inavlid Input Data. Expecting an Array of objects!");
+        }
+
+        $result = array();
+        foreach ($data as $obj)
+        {
+            $result[] = $this->model_create($data);
+        }
+
+        return $results;
     }
 
     /**

@@ -366,7 +366,18 @@ class RestModel
     private function _set_error($err=NULL)
     {
         // Get the whole error string!
-        $err_str = $err ? $err : $this->obj->error->string;
+        $err_str = '';
+        if ($err)
+        {
+            $err_str = $err;
+        }
+        else
+        {
+            foreach ($this->obj->error->all as $err)
+            {
+                $err_str .= $err . '<br>';
+            }
+        }
 
         $this->err = $err_str ? $err_str : 'An Error has occured!';
     }

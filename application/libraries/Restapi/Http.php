@@ -19,6 +19,7 @@ define("REQUEST_GET", 'get');
 define("REQUEST_POST", 'post');
 define("REQUEST_PUT", 'put');
 define("REQUEST_DELETE", 'delete');
+define("REQUEST_HEAD", 'head');
 
 // 2XX SUCCESS
 define("HTTP_RESPONSE_OK", '200');
