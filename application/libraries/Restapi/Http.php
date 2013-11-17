@@ -20,6 +20,7 @@ define("REQUEST_POST", 'post');
 define("REQUEST_PUT", 'put');
 define("REQUEST_DELETE", 'delete');
 define("REQUEST_HEAD", 'head');
+define("REQUEST_PATCH", 'patch');
 
 // 2XX SUCCESS
 define("HTTP_RESPONSE_OK", '200');
@@ -264,13 +265,32 @@ class Request
      */
     public function filter_data($filter)
     {
-        foreach ($this->_data as $key => $value)
+        if (is_assoc($this->_data))
+        {
+            $this->_data = $this->_filter_obj($this->_data, $filter);
+        }
+        else
+        {
+            $idx = 0;
+            foreach ($this->_data as $obj)
+            {
+                $this->_data[$idx] = $this->_filter_obj($obj, $filter);
+                $idx += 1;
+            }
+        }
+    }
+
+    private function _filter_obj($obj, $filter)
+    {
+        foreach ($obj as $key => $value)
         {
             if (in_array($key, $filter))
             {
-                unset($this->_data[$key]);
+                unset($obj[$key]);
             }
         }
+
+        return $obj;
     }
 }
 
@@ -572,7 +592,7 @@ class RestFormat
 
     private function _decode_json($data)
     {
-        return self::_to_array(json_decode($data));
+        return self::_to_array(json_decode($data, TRUE));
     }
 
     private function _encode_json($data)

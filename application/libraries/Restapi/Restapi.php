@@ -56,7 +56,25 @@ class RestResource extends CI_Controller
      * 
      * @var array
      */
-    protected $allowed_methods = array(REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE);
+    protected $allowed_methods = array(REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE,
+        REQUEST_HEAD, REQUEST_PATCH);
+
+    /**
+     * Array of allowed HTTP Methods to be supported by this Resource to establish Array Operations.
+     * Array operations are assumed to be established when @method get_object_id returns NULL.
+     * 
+     * If an HTTP Request is made with a not allowed method, RestResource will immidiately respond
+     * with METHOD_NOT_ALLOWED 405
+     * 
+     * Array operations include, @method model_get_all, @method model_create_all,
+     * @method model_update_all and @method model_delete_all
+     * 
+     * @var array
+     */
+    protected $allowed_array_methods = array(
+        REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE
+    );
+
 
     /**
      * Array of allowed Formats that this resouce should support.
@@ -407,6 +425,16 @@ class RestResource extends CI_Controller
     {
         $offset = $this->request->args($this->offset_arg_name);
         return ($offset !== FALSE) ? intval($offset) : $this->offset;
+    }
+
+    /**
+     * Get object ID
+     * 
+     * @return int|string|null
+     */
+    protected function get_object_id()
+    {
+        return NULL;
     }
 
     /**
@@ -804,7 +832,14 @@ class RestResource extends CI_Controller
     */
     private function _check_allowed()
     {
-        if (in_array($this->request->method, $this->allowed_methods))
+        $id = $this->get_object_id();
+
+        if (!in_array($this->request->method, $this->allowed_methods))
+        {
+            $this->response->http_405($this->allowed_methods);
+        }
+
+        if ($id !== NULL || in_array($this->request->method, $this->allowed_array_methods))
         {
             if(in_array($this->request->format, $this->api_format) &&
                 in_array($this->response->format, $this->api_format))
@@ -814,7 +849,7 @@ class RestResource extends CI_Controller
         }
 
         // Exit with Immediate "Method Not Allowed" response!
-        $this->response->http_405($this->allowed_methods);
+        $this->response->http_405($this->allowed_array_methods);
     }
 
     /**
@@ -900,7 +935,6 @@ class RestResource extends CI_Controller
                 return TRUE;
             }
 
-            /*TODO: Exit with Immediate "400" response!*/
             // TODO: Add Validation Error message!
             $this->response->http_400("Bad Request");
         }
@@ -1195,10 +1229,10 @@ class RestModelResource extends RestResource
         $result = array();
         foreach ($data as $obj)
         {
-            $result[] = $this->model_create($data);
+            $result[] = $this->model_create($obj);
         }
 
-        return $results;
+        return $result;
     }
 
     /**
@@ -1284,18 +1318,27 @@ class RestModelResource extends RestResource
      */
     protected function rest_put()
     {
+        // Load Data
+        $data = $this->process_input_data();
+
         // Check if there is an `id`. i.e. retrieving specific object
         $id = $this->get_object_id();
         if ($id === NULL)
         {
-            // ID is required for PUT operation - 404
-            $this->response->http_404();
+            $where = $this->get_object_selection();
+            if (!$where || !is_array($where))
+            {
+                // Either ID or Where Selection is required for PUT operation - 404
+                $this->response->http_404();
+            }
+
+            // Update All operation
+            $res = $this->model_update_all($data, $where);
         }
-
-        // Load Data
-        $data = $this->process_input_data();
-
-        $res = $this->model_update($id, $data);
+        else
+        {
+            $res = $this->model_update($id, $data);
+        }
 
         return $this->process_output_data($res);
     }
@@ -1340,11 +1383,36 @@ class RestModelResource extends RestResource
     }
 
     /**
-     * Overriden @method rest_delete()
-     * Prepares data for @method model_delete()
+     * Overriden @method model_update_all()
+     * Method responsible for Multiple Model (Objects/Resources) Update.
+     * Mainly called from @method rest_put.
+     *  
+     * @param mixed $data Sufficient Input data for updating the Object/Resource
+     * @param array $where Associative Array  used as Where condition.
      * 
-     * Note: Right now, it only supports deleting Single object, this is why if no object id was
-     * found it exits with HTTP_RESPONSE_NOT_FOUND
+     * @example $this->model_update_all($data, array('owner' => 5));
+     * 
+     * @return mixed Returns representation of updated Object/Resource (pref. array())
+    */
+    protected function model_update_all($data, $where)
+    {
+        if (!is_array($where))
+        {
+            $this->response->http_400('Invalid Objects Selection!');
+        }
+
+        if (!$this->obj->update_all($data, $where))
+        {
+            $error = $this->obj->error();
+            $this->response->http_400($error);
+        }
+
+        return $this->obj->to_array();
+    }
+
+    /**
+     * Overriden @method rest_delete()
+     * Prepares data for @method model_delete() or @method model_delete_all
      * 
      * @return array Processed output data
      */
@@ -1352,13 +1420,22 @@ class RestModelResource extends RestResource
     {
         // Check if there is an `id`. i.e. retrieving specific object
         $id = $this->get_object_id();
+        $where = $this->get_object_selection();
+
         if ($id === NULL)
         {
-            // ID is required for DELETE operation - 404
-            $this->response->http_404('Error 404. Not Found');
+            if (!is_array($where))
+            {
+                // Either ID or Where is required for DELETE operation - 404
+                $this->response->http_404('Error 404. Not Found');
+            }
+            
+            $this->model_delete_all($where);
         }
-
-        $this->model_delete($id);
+        else
+        {
+            $this->model_delete($id);
+        }
 
         // DELETE returns No Content - 204
         return NULL;
@@ -1375,7 +1452,7 @@ class RestModelResource extends RestResource
     protected function model_delete($id)
     {
         // Get the specified object
-        if (! $this->obj->get($id))
+        if ($id === NULL || ! $this->obj->get($id))
         {
             // 404 NOT FOUND
             $this->response->http_404('Error 404. Not Found');
@@ -1384,6 +1461,67 @@ class RestModelResource extends RestResource
         $this->obj->delete();
 
         return NULL;
+    }
+
+    /**
+     * Overriden @method model_delete_all()
+     * 
+     * Method responsible for Multiple Model (Object/Resource) Deletion.
+     *  
+     * =============================================================================================
+     * Important: This is Very Dangerous to be implemented. Implement/Use with Care!
+     * =============================================================================================
+     * 
+     * @param array $where Associative Array used as Where condition.
+     * 
+     * @example $this->model_delete_all(array('owner' => 5));
+     * 
+     * @return null Returns NULL
+    */
+    protected function model_delete_all($where)
+    {
+        if (!is_array($where))
+        {
+            $this->response->http_400('Invalid Objects Selection!');
+        }
+
+        $this->obj->delete_all($where);
+
+        return NULL;
+    }
+
+    /**
+     * Overriden @method rest_head()
+     * Checks if object exists
+     * 
+     * @return mixed Returns Response data
+    */
+    protected function rest_head()
+    {
+        $id = $this->get_object_id();
+        $where = $this->get_object_selection();
+
+        if (!$id || !$this->obj->exists($id, $where))
+        {
+            $this->response->http_404();
+        }
+
+        return NULL;
+    }
+
+
+    /**
+     * Overriden @method rest_patch()
+     * Partial update of object.
+     * 
+     * Note: Current implementation, PATCH and PUT are quite identical, as both can accept partial
+     * updates. This might change in the future.
+     * 
+     * @return mixed Returns Response data
+    */
+    protected function rest_patch()
+    {
+        return $this->rest_put();
     }
 }
 

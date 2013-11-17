@@ -11,6 +11,7 @@ class Users extends RestModelResource
 
     protected function get_object_selection()
     {
+        //return NULL;
         return array('phone' => null);
     }
 }

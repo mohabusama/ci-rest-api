@@ -8,6 +8,7 @@ class User extends DataMapper
     public $fullname;
     public $email;
     public $phone;
+    public $status;
 
     public $table = 'users';
 

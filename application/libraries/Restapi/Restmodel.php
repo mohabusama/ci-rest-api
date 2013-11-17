@@ -112,6 +112,9 @@ class RestModel
      * 
      * Loads @link $obj after retrieving by $id
      * 
+     * @todo Is the $where needed. The behavior is now inconsistent between diff methods GET,
+     * POST, PUT and DELETE. Not all of them accept $where condition.
+     * 
      * @param int|string $id ID of the object
      * @param array $where Array of Key/Value pairs used as Where condition.
      * 
@@ -208,6 +211,44 @@ class RestModel
     }
 
     /**
+     * Update All objects based on a Where selection
+     * 
+     * Expects @link $obj to be already loaded with data. Check @method load()
+     * @param array $where Associative array represents Objects Selection criteria
+     * @param array $data Associative Array of fields to be updated in all objects
+     * 
+     * @return bool TRUE if success, FALSE if failure.
+     */
+    public function update_all($data, $where)
+    {
+        if (!is_array($where) || !count($where))
+        {
+            $this->_set_error("Invalid Object selection!");
+            return FALSE;
+        }
+
+        // Update All
+        $success = $this->obj->where($where)->update($data);
+
+        if (!$success)
+        {
+            if ($this->obj->valid)
+            {
+                $this->_set_error('Failed to save data!');
+            }
+            else
+            {
+                //Validation error
+                $this->_set_error();
+            }
+        }
+
+        $this->obj->where($where)->get();
+
+        return $success;
+    }
+
+    /**
      * Delete existing object
      * 
      * Expects @link $obj to be already loaded with data. Check @method load()
@@ -226,15 +267,45 @@ class RestModel
     }
 
     /**
+     * Delete All existing object
+     * 
+     * @param array $where Object Selection to be deleted
+     * 
+     * @return bool TRUE if success, FALSE if failure.
+     */
+    public function delete_all($where)
+    {
+        if (!is_array($where) || !count($where))
+        {
+            $this->_set_error("Invalid Objects selection!");
+            return FALSE;
+        }
+
+        $this->obj->where($where)->get();
+
+        foreach ($this->obj->all as $obj)
+        {
+            $obj->delete();
+        }
+
+        return TRUE;
+    }
+
+    /**
      * Checks if object with $id exists
      * 
      * @param int|string $id ID of the object to be checked.
      * 
      * @return bool TRUE if exists, FALSE otherwise.
      */
-    public function exists($id)
+    public function exists($id, $where=NULL)
     {
         $obj = new $this->model_class;
+
+        if (is_array($where) && count($where))
+        {
+            $obj->where($where);
+        }
 
         $obj->{"get_by_$this->model_id_field_name"}($id);
 
@@ -290,6 +361,10 @@ class RestModel
         if ($id)
         {
             $this->obj->{"get_by_$this->model_id_field_name"}($id);
+        }
+        else
+        {
+            $this->obj = new $this->model_class;
         }
 
         if (!is_array($data) || !$this->obj->from_array($data))
