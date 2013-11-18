@@ -208,6 +208,24 @@ class RestResource extends CI_Controller
     protected $protected_put_fields = array();
 
     /**
+     * Name of the Resource URI field.
+     * The Resource URI identifies this resource so that it can be used afterwards directly without
+     * the need of clients to build the URI themselves. This field will be added to every object.
+     * The field value is built using @method get_resource_uri
+     * 
+     * Note: If it is set to empty string, it will be ignored.
+     * 
+     * Default: 'uri'
+     * 
+     * @example 
+     * $resource_uri_field_name = 'href';
+     * $resource_uri_field_name = '_uri';
+     * 
+     * @var string
+     */
+    protected $resource_uri_field_name = "uri";
+
+    /**
      * Resource META Data
      * 
      * META Data is extra key that can be <i>optionaly</i> added to the Response.
@@ -477,6 +495,20 @@ class RestResource extends CI_Controller
         if (is_assoc($output))
         {
             // This is the object details
+
+            // Add Resource URI if needed!
+            // We do this before filtering to make sure all fields that might be needed in building
+            // the resource URI to be existing before excluding them (e.g. $output['id'])
+            if ($this->resource_uri_field_name)
+            {
+                $uri = $this->get_resource_uri($output);
+                if ($uri !== NULL)
+                {
+                    $output[$this->resource_uri_field_name] = $uri;
+                }
+            }
+
+            // Do the filtering.
             foreach ($this->excluded_fields as $field)
             {
                 if (array_key_exists($field, $output))
@@ -484,7 +516,6 @@ class RestResource extends CI_Controller
                     unset($output[$field]);
                 }
             }
-            return $output;
         }
 
         return $output;
@@ -548,6 +579,19 @@ class RestResource extends CI_Controller
     protected function process_output_object($obj)
     {
         return $obj;
+    }
+
+    /**
+     * Adds resource URI field to the object.
+     * This method is not implemented, and must be overriden by developer if needed.
+     * 
+     * @param array $obj Output object.
+     * 
+     * @return string Returns resource URI string
+    */
+    protected function get_resource_uri($obj)
+    {
+        return NULL;
     }
     
     /**
@@ -1122,6 +1166,39 @@ class RestModelResource extends RestResource
     protected function get_object_selection()
     {
         return NULL;
+    }
+
+    /**
+     * Overriden method
+     * Adds resource URI field to the object.
+     * 
+     * Default implementation:
+     * - If no object ID, then append the value of the `id` field to the request URI.
+     * - If object ID exists, then the value is the request URI.
+     * 
+     * @param array $obj Output object.
+     * 
+     * @return string Returns resource URI string
+    */
+    protected function get_resource_uri($obj)
+    {
+        $id = $this->get_object_id();
+
+        if ($id === NULL)
+        {
+            if (!array_key_exists($this->model_id_field_name, $obj))
+            {
+                // Cannot build Resource URI -- ID field is required!!
+                return NULL;
+            }
+            
+            $id = $obj[$this->model_id_field_name];
+
+            return $this->request->full_uri($id);
+        }
+
+        // We Have an object ID, The request URI is the Resource URI!
+        return $this->request->full_uri();
     }
 
     /**

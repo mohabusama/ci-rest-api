@@ -74,6 +74,14 @@ class Request
     private $_uri = array();
 
     /**
+     * Private string holding Full URI string
+     * Use @method full_uri() to retrieve full uri with optional appended uri segments.
+     * 
+     * @var string
+     */
+    private $_full_uri = array();
+
+    /**
      * Used as reference for CI security class.
      * 
      * @var object
@@ -128,6 +136,7 @@ class Request
         $this->_args = $args ? $args : array();
 
         $this->_uri = $resource->uri->rsegment_array();
+        $this->_full_uri = $resource->uri->uri_string();
 
         $this->header = $resource->input->request_headers();
 
@@ -254,6 +263,29 @@ class Request
         }
 
         return NULL;
+    }
+
+    /**
+     * Retrieve Full URI with optional appended URI segments
+     * 
+     * @param string|array $segments Extra URI segments. Can be string or array of Strings
+     * 
+     * @return string
+     */
+    public function full_uri($segments=NULL)
+    {
+        if (!$segments)
+        {
+            return $this->_full_uri;
+        }
+
+        $seg = $segments;
+        if (is_array($segments))
+        {
+            $seg = implode("/", $segments);
+        }
+
+        return implode("/", array($this->_full_uri, $seg));
     }
 
     /**
