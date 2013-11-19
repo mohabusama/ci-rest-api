@@ -82,7 +82,7 @@ class RestResource extends CI_Controller
      * 
      * @var array
      */
-    protected $api_format = array('json');
+    protected $api_format = array('json', 'form');
 
     /**
      * Number of Results per API call
@@ -868,6 +868,74 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Authorize Read Resource operation.
+     * This method will be called if request is @link REQUEST_GET or @link REQUEST_HEAD
+     * 
+     * Must be implemented by Developer.
+     * Default: TRUE
+     * 
+     * @param int|string|null $id ID of reource that requires authorization
+     * 
+     * @return bool Return TRUE if authorized, FALSE otherwise.
+    */
+    protected function authorize_read($id=NULL)
+    {
+        // default is TRUE
+        return TRUE;
+    }
+
+    /**
+     * Authorize Create Resource operation.
+     * This method will be called if request is @link REQUEST_POST
+     * 
+     * Must be implemented by Developer.
+     * Default: TRUE
+     * 
+     * @param int|string|null $id ID of reource that requires authorization
+     * 
+     * @return bool Return TRUE if authorized, FALSE otherwise.
+    */
+    protected function authorize_create($id=NULL)
+    {
+        // default is TRUE
+        return TRUE;
+    }
+
+    /**
+     * Authorize Update Resource operation.
+     * This method will be called if request is @link REQUEST_PUT or @link REQUEST_PATCH
+     * 
+     * Must be implemented by Developer.
+     * Default: TRUE
+     * 
+     * @param int|string|null $id ID of reource that requires authorization
+     * 
+     * @return bool Return TRUE if authorized, FALSE otherwise.
+    */
+    protected function authorize_update($id=NULL)
+    {
+        // default is TRUE
+        return TRUE;
+    }
+
+    /**
+     * Authorize DELETE Resource operation.
+     * This method will be called if request is @link REQUEST_DELETE
+     * 
+     * Must be implemented by Developer.
+     * Default: TRUE
+     * 
+     * @param int|string|null $id ID of reource that requires authorization
+     * 
+     * @return bool Return TRUE if authorized, FALSE otherwise.
+    */
+    protected function authorize_delete($id=NULL)
+    {
+        // default is TRUE
+        return TRUE;
+    }
+
+    /**
      * Check if the Request Method is allowed for this Resource.
      * 
      * If Request Method is not allowed, it immidiately exits with 405 METHOD NOT ALLOWED error.
@@ -940,21 +1008,42 @@ class RestResource extends CI_Controller
         /*By default, All requests authorized unless we have authorization methods!*/
         $authorized = TRUE;
 
-        foreach ($this->authorization as $_authorize) {
-            if(is_callable(array($this, $_authorize)) &&
-                ! call_user_func(array($this, $_authorize)))
-            {
-                $authorized = FALSE;
-                break;
-            }
+        // Default operation authorization
+        $id = $this->get_object_id();
+        if ($this->request->method == REQUEST_GET || $this->request->method == REQUEST_HEAD)
+        {
+            $authorized = $this->authorize_read($id);
+        }
+        elseif ($this->request->method == REQUEST_POST)
+        {
+            $authorized = $this->authorize_create($id);
+        }
+        elseif ($this->request->method == REQUEST_PUT || $this->request->method == REQUEST_PATCH)
+        {
+            $authorized = $this->authorize_update($id);
+        }
+        elseif ($this->request->method == REQUEST_DELETE)
+        {
+            $authorized = $this->authorize_delete($id);
+        }
+
+        if ($authorized)
+        {
+            foreach ($this->authorization as $_authorize) {
+                if(is_callable(array($this, $_authorize)) &&
+                    ! call_user_func(array($this, $_authorize)))
+                {
+                    $authorized = FALSE;
+                    break;
+                }
+            }            
         }
 
         if($authorized)
         {
             return TRUE;
         }
-    
-        /*TODO: Exit with Immediate "401" response!*/
+
         $this->response->http_401("Unauthorized");
     }
 
@@ -979,9 +1068,10 @@ class RestResource extends CI_Controller
                 return TRUE;
             }
 
-            // TODO: Add Validation Error message!
+            // @todo: Add Validation Error message!
             $this->response->http_400("Bad Request");
         }
+
         return TRUE;
     }
 }
@@ -1586,7 +1676,6 @@ class RestModelResource extends RestResource
         return NULL;
     }
 
-
     /**
      * Overriden @method rest_patch()
      * Partial update of object.
@@ -1605,5 +1694,5 @@ class RestModelResource extends RestResource
 // Helper Method
 function is_assoc($array)
 {
-    return (array_values($array) !== $array);
+    return (is_array($array) && array_values($array) !== $array);
 }

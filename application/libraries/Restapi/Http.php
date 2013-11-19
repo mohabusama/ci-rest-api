@@ -168,16 +168,16 @@ class Request
         else
         {
             // In case of POST, PUT or DELETE
-            if ($this->format)
-            {
-                $body = file_get_contents('php://input');
-                $this->_data = RestFormat::decode_input_data($body, $this->format);
-            }
-            elseif($this->method == REQUEST_POST)
+            if($this->format == 'form')
             {
                 // Regular Form POST (i.e. application/x-www-form-urlencoded)
                 $post_data = $input->post();
                 $this->_data = $post_data ? $post_data : array();
+            }
+            elseif ($this->format)
+            {
+                $body = file_get_contents('php://input');
+                $this->_data = RestFormat::decode_input_data($body, $this->format);
             }
         }
     }
@@ -194,12 +194,12 @@ class Request
      */
     public function args($key=NULL, $xss_clean=FALSE)
     {
-        if($key === NULL)
+        if ($key === NULL)
         {
             return $this->_args;
         }
 
-        if(array_key_exists($key, $this->_args))
+        if (array_key_exists($key, $this->_args))
         {
             $value = $this->_args[$key];
             return $xss_clean ? $this->security->xss_clean($value) : $value;
@@ -546,23 +546,29 @@ class Response
 
 class RestFormat
 {
-    private static $mime_types = array(
-        'text/html' => 'html',
+
+    private static $input_mime_types = array(
+        'application/x-www-form-urlencoded' => 'form',
+        'application/json' => 'json'
+    );
+
+    private static $output_mime_types = array(
         'application/json' => 'json',
-        'application/xml' => 'xml',
         'application/csv' => 'csv'
     );
 
     public static function get_input_format($header)
     {
-        if (array_key_exists('Content-Type', $header))
-        {
-            $input_mime = explode(';', $header['Content-Type']);
+        $header_low = array_change_key_case($header, CASE_LOWER);
 
-            if(array_key_exists($input_mime[0], self::$mime_types))
+        if (array_key_exists('content-type', $header_low))
+        {
+            $input_mime = explode(';', $header_low['content-type']);
+
+            if(array_key_exists($input_mime[0], self::$input_mime_types))
             {
                 // That should return 'json' or 'xml' etc...
-                return self::$mime_types[$input_mime[0]];
+                return self::$input_mime_types[$input_mime[0]];
             }
         }
 
@@ -574,7 +580,7 @@ class RestFormat
     {
         if(isset($args['format']))
         {
-            foreach (self::$mime_types as $key => $value) {
+            foreach (self::$output_mime_types as $key => $value) {
                 if($value == $args['format'])
                 {
                     return $value;
@@ -598,7 +604,7 @@ class RestFormat
 
     public static function get_content_type($format)
     {
-        foreach (self::$mime_types as $mime => $value) {
+        foreach (self::$output_mime_types as $mime => $value) {
             if($value == $format)
             {
                 return $mime . '; charset=utf-8';
