@@ -14,4 +14,14 @@ class Users extends RestModelResource
         //return NULL;
         return array('phone' => null);
     }
+
+    protected function process_input_field_fullname($field, $value)
+    {
+      return strtolower($value);
+    }
+
+    protected function process_output_field_fullname($field, $value)
+    {
+        return ucwords($value);
+    }
 }

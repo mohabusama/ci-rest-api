@@ -75,7 +75,6 @@ class RestResource extends CI_Controller
         REQUEST_GET, REQUEST_POST, REQUEST_PUT, REQUEST_DELETE
     );
 
-
     /**
      * Array of allowed Formats that this resouce should support.
      * Default is json
@@ -531,8 +530,60 @@ class RestResource extends CI_Controller
     */
     protected function process_input_data()
     {
-        // Load Data - XSS Clean!
-        return $this->get_data();
+        // Load Data
+        $data = $this->get_data();
+
+        if (is_assoc($data))
+        {
+            return $this->process_input_fields($data);
+        }
+        elseif (is_array($data))
+        {
+            $processed = array();
+            foreach ($data as $inp)
+            {
+                $processed[] = $this->process_input_fields($inp);
+            }
+            return $processed;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Process all Input fields.
+     * 
+     * This method will call an [Optional] process method (Implemented by Developer) for each field.
+     * The called method name is process_input_field_{field_name}($field, $value)
+     * 
+     * @example If we have input data = array('name' => 'John', 'email' => 'john@doe.com');
+     * Then if a developer wants to process the `name` field, he can implement the following method
+     * protected function process_input_field_name($field, $value)
+     * {
+     *      // Make processing/changes to the field $value
+     *      $processed_field_value = strtolower($value);
+     *      return $processed_field_value;
+     * }
+     * 
+     * @return mixed Proccesed Fields input data
+    */
+    private function process_input_fields($data)
+    {
+        if (is_assoc($data))
+        {
+            foreach ($data as $field => $value)
+            {
+                $method_name = "process_input_field_$field";
+                if (is_callable(array($this, $method_name)))
+                {
+                    // process method exists for this field
+                    $data[$field] = call_user_func_array(array($this, $method_name),
+                                                         array($field, $value));
+                }
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -578,6 +629,42 @@ class RestResource extends CI_Controller
     */
     protected function process_output_object($obj)
     {
+        return $this->process_output_fields($obj);
+    }
+
+    /**
+     * Process all Output fields.
+     * 
+     * This method will call an [Optional] process method (Implemented by Developer) for each field.
+     * The called method name is process_output_field_{field_name}($field, $value)
+     * 
+     * @example If we have output $obj = array('name' => 'John', 'email' => 'john@doe.com');
+     * Then if a developer wants to process the `name` field, he can implement the following method
+     * protected function process_output_field_name($field, $value)
+     * {
+     *      // Make processing/changes to the field $value
+     *      $processed_field_value = ucwords($value);
+     *      return $processed_field_value;
+     * }
+     * 
+     * @return mixed Proccesed Fields output obj
+    */
+    private function process_output_fields($obj)
+    {
+        if (is_assoc($obj))
+        {
+            foreach ($obj as $field => $value)
+            {
+                $method_name = "process_output_field_$field";
+                if (is_callable(array($this, $method_name)))
+                {
+                    // process method exists for this field
+                    $obj[$field] = call_user_func_array(array($this, $method_name),
+                                                         array($field, $value));
+                }
+            }
+        }
+
         return $obj;
     }
 
