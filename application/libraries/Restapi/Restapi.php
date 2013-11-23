@@ -139,6 +139,27 @@ class RestResource extends CI_Controller
     protected $authentication = array();
 
     /**
+     * Add Basic Authentication to API.
+     * If set to TRUE, @method authenticate_basic() should be overridden by developer.
+     * 
+     * Default: FALSE
+     * 
+     * @example protected $basic_authentication = TRUE;
+     * @var bool
+     */
+    protected $basic_authentication = FALSE;
+
+    /**
+     * Basic Authentication Realm.
+     * 
+     * 
+     * @example protected $basic_authentication_realm = 'API Authentication';
+     * 
+     * @var string
+     */
+    protected $basic_authentication_realm = 'ci-rest-api authentication';
+
+    /**
      * Add one -or- multiple authorization methods. All Authorization methods should succeed in
      * order for the request to be processed.
      * Authorization method should return either TRUE or FALSE. TRUE means the request will
@@ -1023,6 +1044,22 @@ class RestResource extends CI_Controller
     }
 
     /**
+     * Perform Basic Authentication.
+     * $username and $password are extracted from the request.
+     * 
+     * Default: returns FALSE
+     * 
+     * @param string $username User Name extracted from request.
+     * @param string $password Password extracted from request.
+     * 
+     * @return bool Return TRUE if authenticated, FALSE otherwise.
+    */
+    protected function authenticate_basic($username, $password)
+    {
+        return FALSE;
+    }
+
+    /**
      * Check if the Request Method is allowed for this Resource.
      * 
      * If Request Method is not allowed, it immidiately exits with 405 METHOD NOT ALLOWED error.
@@ -1061,7 +1098,20 @@ class RestResource extends CI_Controller
     */
     private function _authenticate()
     {
-        /*By default, All requests authenticated unless we have authentication methods!*/
+        // Check if basic authentication required
+        if ($this->basic_authentication)
+        {
+            if (! $this->authenticate_basic($this->request->username, $this->request->password))
+            {
+                // No Need to continue!
+                $auth_header = 'WWW-Authenticate: Basic realm="'
+                                .$this->basic_authentication_realm.'"';
+                $this->response->set_header($auth_header);
+                $this->response->http_401("Unauthorized");
+            }
+        }
+
+        // By default, All requests authenticated unless we have authentication methods!
         $authenticated = (count($this->authentication)) ? FALSE : TRUE;
 
         foreach ($this->authentication as $_authenticate) {

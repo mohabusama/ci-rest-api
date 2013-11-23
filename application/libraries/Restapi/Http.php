@@ -111,11 +111,25 @@ class Request
     public $format = NULL;
 
     /**
+     * Basic Authentication Username
+     * 
+     * @var string|null
+     */
+    public $username = NULL;
+
+    /**
+     * Basic Authentication Password
+     * 
+     * @var string|null
+     */
+    public $password = NULL;
+
+    /**
      * Array of Request Headers
      * 
      * @var array
      */
-    public $header = array();
+    public $headers = array();
 
     /**
      * Construct method
@@ -138,10 +152,12 @@ class Request
         $this->_uri = $resource->uri->rsegment_array();
         $this->_full_uri = $resource->uri->uri_string();
 
-        $this->header = $resource->input->request_headers();
+        $this->headers = $resource->input->request_headers();
 
-        $input_format = RestFormat::get_input_format($this->header);
+        $input_format = RestFormat::get_input_format($this->headers);
         $this->format = $input_format ? $input_format : $default_format;
+
+        list($this->username, $this->password) = $this->_get_auth($resource);
 
         $this->security = $resource->security;
 
@@ -323,6 +339,24 @@ class Request
         }
 
         return $obj;
+    }
+
+    private function _get_auth($resource)
+    {
+        if ($resource->input->server('PHP_AUTH_USER'))
+        {
+            // Auth Variables exist
+            $username = $resource->input->server('PHP_AUTH_USER');
+            $password = $resource->input->server('PHP_AUTH_PW');
+            return array($username, $password);
+        }
+        elseif (array_key_exists('Authorization', $this->headers))
+        {
+            $auth = trim(preg_replace("/\s+/", " ", $this->headers['Authorization']));
+            return explode(':', base64_decode(explode(' ', $auth)[1]));
+        }
+
+        return array(NULL, NULL);
     }
 }
 
